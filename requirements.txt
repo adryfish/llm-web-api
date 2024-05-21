@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pyjwt
+pytz
+dacite
+playwright
+httpx
+DrissionPage
