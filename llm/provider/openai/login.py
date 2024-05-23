@@ -58,6 +58,7 @@ class OpenAILogin:
             # TODO
             return
 
+        logger.info("[OpenAILogin.login_by_email] start login")
         await login_button.click()
         await self.context_page.wait_for_load_state("load")
 
@@ -73,3 +74,4 @@ class OpenAILogin:
         await self.context_page.locator("button._button-login-password").click()
 
         await self.context_page.wait_for_load_state("load")
+        logger.info("[OpenAILogin.login_by_email] finish login")

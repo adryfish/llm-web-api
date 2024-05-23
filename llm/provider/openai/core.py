@@ -57,6 +57,12 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
         self.context_page.set_default_timeout(180_000)
         await self.context_page.goto(self.index_url)
 
+        user_agent = await self.context_page.evaluate("navigator.userAgent")
+        if "HEADLESS" in user_agent:
+            logger.warn(
+                "The user-agent contains HEADLESS. Note that this might not bypass Cloudflare challenge."
+            )
+
         self.openai_client = OpenAIClient(
             proxy=self.https_proxy, playwright_page=self.context_page
         )
@@ -106,7 +112,7 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
                 user_data_dir=user_data_dir,
                 accept_downloads=True,
                 headless=headless,
-                proxy=playwright_proxy,  # type: ignore
+                proxy=playwright_proxy,
                 # viewport={"width": config.SCREEN_WIDTH, "height": config.SCREEN_HEIGHT},
                 user_agent=user_agent,
                 channel="chrome",
@@ -120,9 +126,11 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
             browser = await chromium.launch(
                 headless=headless,
                 proxy=playwright_proxy,
+                channel="chrome",
+                ignore_default_args=["--enable-automation"],
             )  # type: ignore
             browser_context = await browser.new_context(
-                viewport={"width": config.SCREEN_WIDTH, "height": config.SCREEN_HEIGHT},
+                # viewport={"width": config.SCREEN_WIDTH, "height": config.SCREEN_HEIGHT},
                 user_agent=user_agent,
             )
             return browser_context

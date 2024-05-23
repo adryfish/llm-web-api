@@ -211,11 +211,14 @@ class OpenAIClient:
             finish_reason = None
             request_id = self.generate_completion_id("chatcmpl-")
             content_chunks = []
+            # 对于非订阅用户，model是动态的，可能是gpt3.5,也可能是gpt4-o
+            final_model = model
 
             async def generator():
                 nonlocal full_content
                 nonlocal error
                 nonlocal finish_reason
+                nonlocal final_model
                 async for message in self.stream_completion(self.response_stream):
                     if re.match(
                         r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$", message
@@ -249,6 +252,12 @@ class OpenAIClient:
                     )
                     content_chunks.append(completion_chunk)
 
+                    final_model = (
+                        parsed.get("message", {})
+                        .get("metadata", {})
+                        .get("model_slug", final_model)
+                    )
+
                     if status == "finished_successfully":
                         finish_details_type = (
                             parsed.get("message", {})
@@ -266,7 +275,7 @@ class OpenAIClient:
                         "id": request_id,
                         "created": int(time.time()),
                         "object": "chat.completion.chunk",
-                        "model": "gpt-3.5-turbo",
+                        "model": final_model,
                         "choices": [
                             {
                                 "delta": {"content": completion_chunk},
@@ -287,7 +296,7 @@ class OpenAIClient:
 
             response_data = {
                 "id": request_id,
-                "model": model,
+                "model": final_model,
                 "object": "chat.completion",
                 "choices": [
                     {
@@ -312,25 +321,27 @@ class OpenAIClient:
             print(e)
             raise e
 
+    # def message_prepare(self, messages: list[dict[str, any]]):
+    #     # 合并消息内容
+    #     user_message = messages[-1].get("content")
+    #     if len(messages) == 1:
+    #         return user_message
+
+    #     content = ""
+    #     for message in messages[0:-1]:
+    #         role = "用户" if message.get("role", "user") == "user" else "系统"
+    #         message_content = message.get("content", "")
+    #         content += f"{role}:{message_content}\n\n"
+
+    #     content += "以上是对话历史记录，根据下方用户的提问进行回答\n\n"
+
+    #     content += user_message
+
+    #     return content
     def message_prepare(self, messages: list[dict[str, any]]):
-        # 合并消息内容
-        if len(messages) == 1:
-            return messages[0].get("content")
-        elif len(messages) > 1:
-            new_text_message = {
-                "content": "以上为历史消息，关注以下用户消息",
-                "role": "system",
-            }
-            messages.insert(len(messages) - 1, new_text_message)
-            logger.info("注入提升尾部消息注意力 system prompt")
-
-        content = ""
-        for message in messages:
-            role = message.get("role", "user")
-            message_content = message.get("content", "")
-            content += f"{role}:{message_content}\n\n"
-
-        return content
+        # TODO
+        # 对于多轮对话，总是返回空白回答，原因不明
+        return messages[-1].get("content")
 
     async def change_model(self, model_name: str):
         model_map = {

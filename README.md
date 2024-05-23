@@ -12,13 +12,16 @@
  - 支持邮箱自动登录(支持gpt3.5, gpt-4o, gpt-4模型)
  - 支持登录失效后自动重新登录
  - 支持高速流式输出
- - 支持多轮对话
  - 支持模型切换
 
 与ChatGPT接口完全兼容。
 
+## 暂时不支持的功能
+  - HEADLESS模式(无法通过cloudflare)
+  - 多轮对话(返回空，原因不明)
+
 ## 原理
-利用[DrissionPage](https://github.com/g1879/DrissionPage)模拟浏览器登录破解cloudflare 5s盾，将登录成功的cookie注入[playwright](https://playwright.dev/)控制的浏览器中。通过模拟用户操作获取请求参数，使用httpx发送获取流式请求响应。
+利用[DrissionPage](https://github.com/g1879/DrissionPage)模拟浏览器登录破解cloudflare 5s盾，成功后将cookie注入[Playwright](https://playwright.dev/)控制的浏览器中。通过模拟用户操作获取请求参数，使用httpx发送获取流式请求响应。
 通过使用此方式，免去了复现核心加密JS代码，逆向难度大大降低。
 
 ## 使用方法
@@ -52,6 +55,13 @@
    # 暂时只支持Chrome浏览器
    playwright install chrome
    ```
+
+### 设置环境变量
+
+    ```shell
+    # 根据需求设置环境变量
+    cp .env.example .env
+    ```
 
 
 ### 启动FastAPI服务器
