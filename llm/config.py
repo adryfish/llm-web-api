@@ -9,7 +9,8 @@ ENABLED_PROVIDER = os.getenv("ENABLED_PROVIDER", "openai").split(",")
 
 PROXY_SERVER = os.getenv("PROXY_SERVER", None)
 
-HEADLESS = os.getenv("HEADLESS", "True") == "True"
+NO_GUI = os.getenv("NO_GUI", "false").lower() == "true"
+HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
 USER_AGENT = os.getenv("USER_AGENT", None)
 SAVE_LOGIN_STATE = os.getenv("SAVE_LOGIN_STATE", True)
 

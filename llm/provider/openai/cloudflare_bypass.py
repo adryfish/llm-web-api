@@ -28,18 +28,20 @@ class CloudflareBypass:
         options = ChromiumOptions()
         options.set_paths(browser_path=browser_path)
 
-        # Some arguments to make the browser better for automation and less detectable.
-        arguments = []
-
-        if proxy_server:
-            arguments.append(f"--proxy-server={proxy_server}")
-
         # https://stackoverflow.com/questions/68289474/selenium-headless-how-to-bypass-cloudflare-detection-using-selenium
         if config.HEADLESS:
             options.headless(True)
 
         if user_agent:
             options.set_user_agent(user_agent)
+
+        arguments = []
+        if proxy_server:
+            arguments.append(f"--proxy-server={proxy_server}")
+
+        # Some arguments to make the browser better for automation and less detectable.
+        if config.NO_GUI:
+            arguments.append("--no-sandbox")
 
         for argument in arguments:
             options.set_argument(argument)

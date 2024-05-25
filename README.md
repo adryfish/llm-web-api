@@ -1,10 +1,10 @@
-# 仓库描述
+# LLM Web API
 
 [![](https://img.shields.io/github/license/adryfish/llm-web-api.svg)](LICENSE)
 ![](https://img.shields.io/github/stars/adryfish/llm-web-api.svg)
 ![](https://img.shields.io/github/forks/adryfish/llm-web-api.svg)
 
-使用`FastAPI`和`Playwright`将网页版ChatGPT转换成API接口
+使用`Playwright`将网页版ChatGPT转换成`FastAPI`接口
 
 ## 功能列表
  - 支持Cloudflare 5s盾破解
@@ -17,7 +17,6 @@
 与ChatGPT接口完全兼容。
 
 ## 暂时不支持的功能
-  - HEADLESS模式(无法通过cloudflare)
   - 多轮对话(返回空，原因不明)
 
 ## 原理
@@ -26,48 +25,63 @@
 
 ## 使用方法
 
-### 创建并激活 python 虚拟环境
-   ```shell   
-   # 进入项目根目录
-   cd llm-web-api
-   
-   # 创建虚拟环境
-   # 注意python 版本需要3.10以上
-   python -m venv venv
-   
-   # macos & linux 激活虚拟环境
-   source venv/bin/activate
+### 本地安装
+#### 创建并激活 python 虚拟环境
 
-   # windows 激活虚拟环境
-   venv\Scripts\activate
+```shell   
+# 进入项目根目录
+cd llm-web-api
 
-   ```
+# 创建虚拟环境
+# 注意python 版本需要3.10以上
+python -m venv venv
 
-### 安装依赖库
+# macos & linux 激活虚拟环境
+source venv/bin/activate
 
-   ```shell
-   pip3 install -r requirements.txt
-   ```
+# windows 激活虚拟环境
+venv\Scripts\activate
+```
 
-### 安装 playwright浏览器驱动
+#### 安装依赖库
 
-   ```shell
-   # 暂时只支持Chrome浏览器
-   playwright install chrome
-   ```
+```shell
+pip3 install -r requirements.txt
+```
 
-### 设置环境变量
+#### 安装 playwright浏览器驱动
 
-    ```shell
-    # 根据需求设置环境变量
-    cp .env.example .env
-    ```
+```shell
+# 暂时只支持Chrome浏览器
+playwright install chrome
+```
 
+#### 安装xvfb(可选)
+```shell
+# 对于无图形界面的Linux，需要安装xvfb
+sudo apt-get install xvfb
+```
 
-### 启动FastAPI服务器
-   ```shell
-   python main.py
-   ```
+#### 设置环境变量
+
+```shell
+# 根据需求设置环境变量
+cp .env.example .env
+```
+
+#### 启动FastAPI服务器
+```shell
+python main.py
+```
+
+### 使用Docker
+
+#### 使用Docker编译运行
+
+```shell
+docker build -t llm-web-api .
+docker run --name llm-web-api --rm -it 5000:5000 llm-web-api
+```
 
 ## 接口列表
 
@@ -79,16 +93,11 @@
 
 **POST /v1/chat/completions**
 
-header 需要设置 Authorization 头部：
-
-```
-Authorization: Bearer [refresh_token]
-```
-
 请求数据：
 ```json
 {
-    // 模型名称填写gpt-4o, gpt-4, gpt-3.5-turbo
+    // 如何你是免费或者未登录用户，模型是gpt-3.5-turbo
+    // 如果你是订阅用户,模型名称填写gpt-4o, gpt-4, gpt-3.5-turbo
     "model": "gpt-4o",
     "messages": [
         {
@@ -124,6 +133,43 @@ Authorization: Bearer [refresh_token]
     },
     "created": 1716305953
 }
+```
+
+## 用例
+### 使用Python OpenAI官方库
+#### Python
+```python
+import openai
+
+openai.api_key = 'anything'
+openai.base_url = "http://localhost:5000"
+
+completion = openai.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "user", "content": "Hello"},
+    ],
+)
+
+print(completion.choices[0].message.content)
+```
+
+#### Node.js
+
+```javascript
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+	apiKey: "anything",
+	baseURL: "http://localhost:5000",
+});
+
+const chatCompletion = await openai.chat.completions.create({
+  messages: [{ role: 'user', content: 'Echo Hello' }],
+  model: 'gpt-3.5-turbo',
+});
+
+console.log(chatCompletion.choices[0].message.content);
 ```
 
 ## 注意事项

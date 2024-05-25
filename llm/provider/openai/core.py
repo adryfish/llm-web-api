@@ -1,14 +1,11 @@
+import asyncio
 import os
-from datetime import datetime
 from typing import Optional
 
-from fastapi import BackgroundTasks
 from fastapi.responses import StreamingResponse
 from playwright.async_api import (
     BrowserContext,
     BrowserType,
-    Cookie,
-    ElementHandle,
     Page,
     Playwright,
     async_playwright,
@@ -48,14 +45,15 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
             headless=config.HEADLESS,
         )
         self.browser_context.set_default_timeout(180_000)
+        # doesn't work now
         # stealth.min.js is a js script to prevent the website from detecting the crawler.
-        await self.browser_context.add_init_script(
-            path=os.path.join(os.getcwd(), "libs/stealth.min.js")
-        )
+        # await self.browser_context.add_init_script(
+        #     path=os.path.join(os.getcwd(), "libs/stealth.min.js")
+        # )
 
         self.context_page = await self.browser_context.new_page()
         self.context_page.set_default_timeout(180_000)
-        await self.context_page.goto(self.index_url)
+        # await self.context_page.goto(self.index_url)
 
         user_agent = await self.context_page.evaluate("navigator.userAgent")
         if "HEADLESS" in user_agent:
@@ -128,7 +126,7 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
                 proxy=playwright_proxy,
                 channel="chrome",
                 ignore_default_args=["--enable-automation"],
-            )  # type: ignore
+            )
             browser_context = await browser.new_context(
                 # viewport={"width": config.SCREEN_WIDTH, "height": config.SCREEN_HEIGHT},
                 user_agent=user_agent,

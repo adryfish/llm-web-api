@@ -23,13 +23,14 @@ class OpenAILogin:
         self.proxies = proxies
 
     async def begin(self):
-        logger.info("[OpenAILogin.begin] Begin login OpenAI ...")
+        logger.info("[OpenAILogin.begin] OpenAILogin start...")
         await self.bypass_cloudflare()
 
         # 最后等上几秒，不然不点击登录
         await asyncio.sleep(5)
         if self.login_type == "email":
             await self.login_by_email()
+        logger.info("[OpenAILogin.begin] OpenAILogin finished...")
 
     async def bypass_cloudflare(self):
         challenge_form = await self.context_page.query_selector("#challenge-form")
@@ -53,14 +54,21 @@ class OpenAILogin:
 
     async def login_by_email(self):
         login_button = self.context_page.locator("button", has_text="Log in")
-        if not login_button or not await login_button.is_visible():
-            # 检查是否真的没有登录
-            # TODO
-            return
-
+        if await login_button.is_visible():
+            await login_button.click()
+            await self.context_page.wait_for_load_state("load")
+        else:
+            # 2024-05-25
+            # 打开首页后直接跳到登录页面，这里要判断一下，如果已经在登录页，就不用点击按钮
+            if self.context_page.url.lower().startswith(
+                "https://auth.openai.com/authorize"
+            ):
+                ...
+            else:
+                # 其他没有登录的情况
+                # TODO
+                return
         logger.info("[OpenAILogin.login_by_email] start login")
-        await login_button.click()
-        await self.context_page.wait_for_load_state("load")
 
         await self.context_page.locator("#email-input").click()
         await self.context_page.locator("#email-input").fill(self.email)

@@ -1,6 +1,10 @@
+import os
+import platform
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
+from llm import config
 
 
 def create_api(app):
@@ -25,11 +29,26 @@ async def lifespan(app: FastAPI):
         pass
 
 
+XVFB_DISPLAY = None
+
+
+def start_xvfb_display():
+    global XVFB_DISPLAY
+    if XVFB_DISPLAY is None:
+        from xvfbwrapper import Xvfb
+
+        XVFB_DISPLAY = Xvfb()
+        XVFB_DISPLAY.start()
+
+
 def api():
     from llm.shared_cmd_options import cmd_opts
 
     app = FastAPI(lifespan=lifespan)
     api = create_api(app)
+
+    if config.NO_GUI and platform.system() == "Linux":
+        start_xvfb_display()
 
     api.launch(
         server_name="0.0.0.0" if cmd_opts.listen else "127.0.0.1",

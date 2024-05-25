@@ -1,0 +1,31 @@
+FROM ubuntu:22.04
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y wget gnupg \
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-pip google-chrome-stable xvfb
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+
+RUN useradd --home-dir /home/llmuser --shell /bin/bash llmuser \
+    && chown -R llmuser:llmuser .
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt --index-url https://mirrors.cloud.tencent.com/pypi/simple --trusted-host mirrors.cloud.tencent.com \
+    && rm -rf /root/.cache
+
+USER llmuser
+COPY llm .
+
+ENV PYTHONPATH=/app
+ENV NO_GUI=true
+
+EXPOSE 5000
+
+# CMD ["/usr/bin/python", "-u", "llm/main.py"]
+CMD sleep 1h
