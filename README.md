@@ -142,7 +142,7 @@ docker run --name llm-web-api --rm -it 5000:5000 llm-web-api
 import openai
 
 openai.api_key = 'anything'
-openai.base_url = "http://localhost:5000"
+openai.base_url = "http://localhost:5000/v1/"
 
 completion = openai.chat.completions.create(
     model="gpt-3.5-turbo",
@@ -161,7 +161,7 @@ import OpenAI from 'openai';
 
 const openai = new OpenAI({
 	apiKey: "anything",
-	baseURL: "http://localhost:5000",
+	baseURL: "http://localhost:5000/v1/",
 });
 
 const chatCompletion = await openai.chat.completions.create({
