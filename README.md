@@ -84,12 +84,17 @@ docker run --name llm-web-api --rm -it 5000:5000 llm-web-api
 ```
 
 ### 环境变量
-`PROXY_SERVER`: 代理服务器地址
-`HEADLESS`: 是否使用无头模式(不推荐开启)
-`USER_AGENT`: 浏览器的User-Agent
-`OPENAI_LOGIN_TYPE`: ChatGPT的登录类型,nologin或者email
-`OPENAI_LOGIN_EMAIL`: 对于email登录方式，提供email帐号
-`OPENAI_LOGIN_PASSWORD`: 对于email登录方式，提供密码
+
+| 变量名             | 描述                                       | 默认值  |
+|---------------------|--------------------------------------------|--------|
+| PROXY_SERVER        | 代理服务器地址                             | None     |
+| HEADLESS            | 是否使用无头模式(不推荐开启)               | False   |
+| USER_AGENT          | 浏览器的 User-Agent                        | 浏览器默认     |
+| BROWSER_DATA            | 浏览器数据存放目录               | 当前目录/browser_data   |
+| OPENAI_LOGIN_TYPE   | ChatGPT 的登录类型, nologin 或者 email    | nologin|
+| OPENAI_LOGIN_EMAIL  | 对于 email 登录方式，提供 email 帐号       | None     |
+| OPENAI_LOGIN_PASSWORD | 对于 email 登录方式，提供密码            | None     |
+
 
 ## 接口列表
 

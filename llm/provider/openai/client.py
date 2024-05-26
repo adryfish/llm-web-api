@@ -61,8 +61,8 @@ class OpenAIClient:
     async def __handle_response(self, response: Response):
         path = urlparse(response.url).path
         if path == "/backend-api/sentinel/chat-requirements":
-            # 获取账户类型 nologin, freeaccount, paid
-            # 不要用 await response.finish()等待response完成，有时会死循环
+            # 获取账户类型 freeaccount, paid
+            # 不要用 await response.finish()等待response完成，有时会死循环,报错就等下一次
             _body = await response.json()
 
             # chatgpt-freeaccount or chatgpt-paid
@@ -86,7 +86,8 @@ class OpenAIClient:
             self.playwright_page.remove_listener("response", self.__handle_response)
 
     async def setup_listener(self):
-        self.playwright_page.on("response", self.__handle_response)
+        if config.OPENAI_LOGIN_TYPE == "email":
+            self.playwright_page.on("response", self.__handle_response)
 
     async def __handle_route(self, route):
         request = route.request
@@ -102,9 +103,14 @@ class OpenAIClient:
         #     print(f"{header}: {value}")
 
         try:
+            url = (
+                "/backend-api/conversation"
+                if self.account_type
+                else "/backend-anon/conversation"
+            )
             async with self.http_client.stream(
                 "POST",
-                "/backend-anon/conversation",
+                url,
                 headers=headers,
                 json=request.post_data_json,
             ) as response:

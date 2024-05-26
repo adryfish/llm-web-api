@@ -71,11 +71,24 @@ class CloudflareBypass:
         return self.driver.cookies(all_info=True)
 
     def try_to_click_challenge(self):
-        if self.driver.wait.ele_displayed("xpath://div/iframe", timeout=1.5):
-            time.sleep(1.5)
-            self.driver("xpath://div/iframe").ele(
-                "Verify you are human", timeout=2.5
-            ).click()
+        try:
+            if self.driver.wait.ele_displayed("xpath://div/iframe", timeout=1.5):
+                time.sleep(1.5)
+                self.driver("xpath://div/iframe").ele(
+                    "Verify you are human", timeout=2.5
+                ).click()
+        except Exception as e:
+            # 2025-05-26
+            # 有时会出现错误，重试能解决一部分问题
+            # 1. DrissionPage.errors.ContextLostError: 页面被刷新，请操作前尝试等待页面刷新或加载完成。
+            # 2. DrissionPage.errors.ElementNotFoundError:
+            #    没有找到元素。
+            #    method: ele()
+            #    args: {'locator': 'Verify you are human', 'index': 1}
+            logger.info(
+                f"[CloudflareBypass.try_to_click_challenge] fail to click the challenge. message: {str(e)}"
+            )
+            self.driver.refresh()
 
     def is_passed(self):
         print(self.driver.cookies())

@@ -1,3 +1,12 @@
+## v1.0.2
+
+## Enhancement
+  - Cloudflare bypass异常处理
+  - 登录账户和未登录账户用不同的conversation url请求
+
+## BugFix
+  - HEADLESS默认值应为False
+
 ## v1.0.1
 
 `2024-05-25`

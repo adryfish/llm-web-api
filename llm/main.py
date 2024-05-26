@@ -37,7 +37,7 @@ def start_xvfb_display():
     if XVFB_DISPLAY is None:
         from xvfbwrapper import Xvfb
 
-        XVFB_DISPLAY = Xvfb()
+        XVFB_DISPLAY = Xvfb(width=config.SCREEN_WIDTH, height=config.SCREEN_HEIGHT)
         XVFB_DISPLAY.start()
 
 
