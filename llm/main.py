@@ -1,10 +1,10 @@
-import os
 import platform
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from llm import config
+from llm.logger import logger
 
 
 def create_api(app):
@@ -48,6 +48,7 @@ def api():
     api = create_api(app)
 
     if config.NO_GUI and platform.system() == "Linux":
+        logger.info(f"Start xvfb service")
         start_xvfb_display()
 
     api.launch(

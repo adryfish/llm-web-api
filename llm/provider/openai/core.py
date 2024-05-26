@@ -50,10 +50,12 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
         # await self.browser_context.add_init_script(
         #     path=os.path.join(os.getcwd(), "libs/stealth.min.js")
         # )
+        await self.browser_context.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => false});"
+        )
 
         self.context_page = await self.browser_context.new_page()
         self.context_page.set_default_timeout(180_000)
-        # await self.context_page.goto(self.index_url)
 
         user_agent = await self.context_page.evaluate("navigator.userAgent")
         if "HEADLESS" in user_agent:

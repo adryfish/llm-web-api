@@ -41,6 +41,7 @@ class CloudflareBypass:
 
         # Some arguments to make the browser better for automation and less detectable.
         if config.NO_GUI:
+            logger.info("[CloudflareBypass.__init__] set --no-sandbox")
             arguments.append("--no-sandbox")
 
         for argument in arguments:

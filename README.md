@@ -83,6 +83,14 @@ docker build -t llm-web-api .
 docker run --name llm-web-api --rm -it 5000:5000 llm-web-api
 ```
 
+### 环境变量
+`PROXY_SERVER`: 代理服务器地址
+`HEADLESS`: 是否使用无头模式(不推荐开启)
+`USER_AGENT`: 浏览器的User-Agent
+`OPENAI_LOGIN_TYPE`: ChatGPT的登录类型,nologin或者email
+`OPENAI_LOGIN_EMAIL`: 对于email登录方式，提供email帐号
+`OPENAI_LOGIN_PASSWORD`: 对于email登录方式，提供密码
+
 ## 接口列表
 
 目前支持与openai兼容的 `/v1/chat/completions` 接口，可自行使用与openai或其他兼容的客户端接入接口

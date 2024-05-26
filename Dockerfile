@@ -12,7 +12,7 @@ RUN apt-get update \
 
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 
-RUN useradd --home-dir /home/llmuser --shell /bin/bash llmuser \
+RUN useradd -m --shell /bin/bash llmuser \
     && chown -R llmuser:llmuser .
 
 COPY requirements.txt .
@@ -20,12 +20,12 @@ RUN pip install -r requirements.txt --index-url https://mirrors.cloud.tencent.co
     && rm -rf /root/.cache
 
 USER llmuser
-COPY llm .
+COPY llm /app/llm
 
 ENV PYTHONPATH=/app
 ENV NO_GUI=true
 
 EXPOSE 5000
 
-# CMD ["/usr/bin/python", "-u", "llm/main.py"]
-CMD sleep 1h
+CMD ["/usr/bin/python", "-u", "llm/main.py", "--listen"]
+# CMD sleep 1h
