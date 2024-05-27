@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  chatgpt-web:
+    image: chenzhaoyu94/chatgpt-web # always use latest, pull the tag image again to update
+    container_name: chatgpt-web
+    ports:
+      - 3002:3002
+    environment:
+      OPENAI_API_KEY: "sk-xxx"
+      # API interface address, optional, available when OPENAI_API_KEY is set
+      OPENAI_API_BASE_URL: "http://chatgpt:5000/v1"
+      # API model, optional, available when OPENAI_API_KEY is set, https://platform.openai.com/docs/models
+      # gpt-4, gpt-4o, gpt-4-turbo, gpt-4-turbo-preview, gpt-4-0125-preview, gpt-4-1106-preview, gpt-4-0314, gpt-4-0613, gpt-4-32k, gpt-4-32k-0314, gpt-4-32k-0613, gpt-3.5-turbo-16k, gpt-3.5-turbo-16k-0613, gpt-3.5-turbo, gpt-3.5-turbo-0301, gpt-3.5-turbo-0613, text-davinci-003, text-davinci-002, code-davinci-002
+      OPENAI_API_MODEL: "gpt-3.5-turbo"
+    depends_on:
+      - chatgpt 
+    restart: unless-stopped
+
+  chatgpt:
+    image: adryfish/llm-web-api
+    container_name: llm-web-api
+    ports:
+      - "5000:5000"
+    # volumes:
+    #   # 浏览器数据，如何要保留浏览器登录信息，需要配置
+    #   - ./browser_data:/app/browser_data
+    # environment:
+    #   PROXY_SERVER: ""          # 代理服务器地址
+      # USER_AGENT: ""            # 浏览器User-Agent
+      # OPENAI_LOGIN_TYPE: ""     # 登录类型,nologin or email
+      # OPENAI_LOGIN_EMAIL: ""    # 登录邮箱
+      # OPENAI_LOGIN_PASSWORD: "" # 登录密码
+    restart: unless-stopped

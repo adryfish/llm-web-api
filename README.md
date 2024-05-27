@@ -25,6 +25,36 @@
 
 ## 使用方法
 
+### 使用Docker
+#### 使用Docker运行
+
+```shell
+docker run --name llm-web-api --rm -it 5000:5000 adryfish/llm-web-api
+```
+
+#### 使用Docker compose
+
+详细配置见下方环境变量
+
+```yml
+version: '3.8'
+services:
+  llm-web-api:
+    image: adryfish/llm-web-api
+    container_name: llm-web-api
+    ports:
+      - "5000:5000"
+    volumes:
+      # 浏览器数据，如何要保留浏览器登录信息，需要配置
+      - ./browser_data:/app/browser_data
+    environment:
+      # PROXY_SERVER: ""          # 代理服务器地址
+      # USER_AGENT: ""            # 浏览器User-Agent
+      # OPENAI_LOGIN_TYPE: ""     # 登录类型,nologin or email
+      # OPENAI_LOGIN_EMAIL: ""    # 登录邮箱
+      # OPENAI_LOGIN_PASSWORD: "" # 登录密码
+    restart: unless-stopped
+
 ### 本地安装
 #### 创建并激活 python 虚拟环境
 
@@ -72,15 +102,6 @@ cp .env.example .env
 #### 启动FastAPI服务器
 ```shell
 python main.py
-```
-
-### 使用Docker
-
-#### 使用Docker编译运行
-
-```shell
-docker build -t llm-web-api .
-docker run --name llm-web-api --rm -it 5000:5000 llm-web-api
 ```
 
 ### 环境变量

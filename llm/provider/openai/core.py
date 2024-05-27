@@ -1,4 +1,3 @@
-import asyncio
 import os
 from typing import Optional
 
@@ -40,7 +39,7 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
         chromium = self.playwright.chromium
         self.browser_context = await self.launch_browser(
             chromium,
-            {"server": self.https_proxy},
+            {"server": self.https_proxy} if self.https_proxy else None,
             config.USER_AGENT,
             headless=config.HEADLESS,
         )

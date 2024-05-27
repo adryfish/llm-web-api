@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  lobe-chat:
+    image: lobehub/lobe-chat:latest
+    container_name: lobe-chat
+    ports:
+      - "3210:3210" 
+    environment: 
+      OPENAI_API_KEY: "anything" 
+      OPENAI_PROXY_URL: "http://chatgpt:5000/v1"
+    depends_on:
+      - chatgpt 
+    restart: unless-stopped
+
+
+  chatgpt:
+    image: adryfish/llm-web-api
+    container_name: llm-web-api
+    ports:
+      - "5000:5000"
+    # volumes:
+    #   # 浏览器数据，如何要保留浏览器登录信息，需要配置
+    #   - ./browser_data:/app/browser_data
+    # environment:
+    #   PROXY_SERVER: ""          # 代理服务器地址
+      # USER_AGENT: ""            # 浏览器User-Agent
+      # OPENAI_LOGIN_TYPE: ""     # 登录类型,nologin or email
+      # OPENAI_LOGIN_EMAIL: ""    # 登录邮箱
+      # OPENAI_LOGIN_PASSWORD: "" # 登录密码
+    restart: unless-stopped
