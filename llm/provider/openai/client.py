@@ -33,6 +33,7 @@ class OpenAIClient:
         self.lock = asyncio.Lock()
 
         self.response_stream = None
+        self.messages = None
         self.ready_to_read = asyncio.Event()  # 事件：通知开始读取
         self.read_complete = asyncio.Event()  # 事件：通知读取完成
         self.origin_response = []
@@ -108,11 +109,25 @@ class OpenAIClient:
                 if self.account_type
                 else "/backend-anon/conversation"
             )
+
+            json_body = request.post_data_json
+            if self.messages and len(self.messages) > 1:
+                json_body["messages"] = [
+                    {
+                        "author": {"role": message["role"]},
+                        "content": {
+                            "content_type": "text",
+                            "parts": [message["content"]],
+                        },
+                    }
+                    for message in self.messages
+                ]
+
             async with self.http_client.stream(
                 "POST",
                 url,
                 headers=headers,
-                json=request.post_data_json,
+                json=json_body,
             ) as response:
                 response_headers = response.headers
                 if response.status_code != 200:
@@ -225,6 +240,7 @@ class OpenAIClient:
 
         logger.info("[OpenAIClient.create_completion] Start chat_completion")
         self.response_stream = None
+        self.messages = None
         self.ready_to_read.clear()
         self.read_complete.clear()
         self.origin_response = []
@@ -356,6 +372,9 @@ class OpenAIClient:
                         }
                         yield f"data: {json.dumps(response_chunk)}\n\n"
 
+                logger.info("[OpenAIClient.create_completion] End chat_completion")
+                self.read_complete.set()
+
                 if stream:
                     data = {
                         "id": request_id,
@@ -397,9 +416,6 @@ class OpenAIClient:
 
                     yield response_data
 
-                logger.info("[OpenAIClient.create_completion] End chat_completion")
-                self.read_complete.set()
-
             if stream:
                 return generator()
 
@@ -416,26 +432,8 @@ class OpenAIClient:
         finally:
             self.lock.release()
 
-    # def message_prepare(self, messages: list[dict[str, any]]):
-    #     # 合并消息内容
-    #     user_message = messages[-1].get("content")
-    #     if len(messages) == 1:
-    #         return user_message
-
-    #     content = ""
-    #     for message in messages[0:-1]:
-    #         role = "用户" if message.get("role", "user") == "user" else "系统"
-    #         message_content = message.get("content", "")
-    #         content += f"{role}:{message_content}\n\n"
-
-    #     content += "以上是对话历史记录，根据下方用户的提问进行回答\n\n"
-
-    #     content += user_message
-
-    #     return content
     def message_prepare(self, messages: list[dict[str, any]]):
-        # TODO
-        # 对于多轮对话，总是返回空白回答，原因不明
+        self.messages = messages
         return messages[-1].get("content")
 
     async def change_model(self, model_name: str):
