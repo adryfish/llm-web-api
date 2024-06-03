@@ -1,4 +1,26 @@
+## v1.0.3
+
+`2024-06-03`
+
+## Enhancement
+  - 登录增强: 某些客户端打开首页后会弹出一个登录的dialog
+
+
+## v1.0.3
+
+`2024-05-27`
+
+## Feature
+  - Docker compose支持
+  - 支持多种聊天服务
+
+## BugFix
+  - 修复消息结尾错误
+  - 修复HEADLESS不存在程序报错
+
 ## v1.0.2
+
+`2024-05-26`
 
 ## Enhancement
   - Cloudflare bypass异常处理

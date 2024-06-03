@@ -26,10 +26,18 @@ class OpenAILogin:
         logger.info("[OpenAILogin.begin] OpenAILogin start...")
         await self.bypass_cloudflare()
 
-        # 最后等上几秒，不然不点击登录
-        await asyncio.sleep(5)
         if self.login_type == "email":
             await self.login_by_email()
+        else:
+            # 2024-05-28
+            # 某些客户端打开首页后会弹出一个登录的dialog
+            dialog = self.context_page.locator('div[role="dialog"]')
+            if dialog and await dialog.is_visible():
+                stay_logged_out = dialog.locator("a", has_text="Stay logged out")
+                if stay_logged_out and await stay_logged_out.is_visible():
+                    await stay_logged_out.click()
+                    await self.context_page.wait_for_load_state("load")
+
         logger.info("[OpenAILogin.begin] OpenAILogin finished...")
 
     async def bypass_cloudflare(self):
@@ -52,8 +60,18 @@ class OpenAILogin:
             await self.context_page.reload()
             await self.context_page.wait_for_load_state("load")
 
+            # 最后等上几秒，不然不点击登录
+            await asyncio.sleep(5)
+
     async def login_by_email(self):
-        login_button = self.context_page.locator("button", has_text="Log in")
+        # 2024-05-28
+        # 某些客户端打开首页后会弹出一个登录的dialog
+        dialog = self.context_page.locator('div[role="dialog"]')
+        if dialog and await dialog.is_visible():
+            login_button = dialog.locator("button", has_text="Log in")
+        else:
+            login_button = self.context_page.locator("button", has_text="Log in")
+
         if await login_button.is_visible():
             await login_button.click()
             await self.context_page.wait_for_load_state("load")
@@ -69,6 +87,9 @@ class OpenAILogin:
                 # TODO
                 return
         logger.info("[OpenAILogin.login_by_email] start login")
+
+        # TODO
+        # 可能会再次遇到cloudflare 5s盾
 
         await self.context_page.locator("#email-input").click()
         await self.context_page.locator("#email-input").fill(self.email)

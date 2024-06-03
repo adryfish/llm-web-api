@@ -249,6 +249,9 @@ class OpenAIClient:
                 await submit_button.click()
             else:
                 # 没找到就点击form的最后一个按钮
+                logger.warn(
+                    f"Cannot find submit button. Account type {self.account_type}"
+                )
                 form = self.playwright_page.locator("form")
                 buttons = form.locator("button")
                 button_count = await buttons.count()
@@ -402,6 +405,10 @@ class OpenAIClient:
 
             async for _ in generator():
                 return _
+        except TimeoutError as e:
+            logger.error("[OpenAIClient.chat_completion] wait timeout")
+            await self.playwright_page.reload()
+            await self.login()
         except Exception as e:
             logger.error("[OpenAIClient.chat_completion] Error happened")
             print(e)

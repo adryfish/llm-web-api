@@ -54,6 +54,7 @@ services:
       # OPENAI_LOGIN_EMAIL: ""    # 登录邮箱
       # OPENAI_LOGIN_PASSWORD: "" # 登录密码
     restart: unless-stopped
+```
 
 ### 本地安装
 #### 创建并激活 python 虚拟环境
