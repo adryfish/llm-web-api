@@ -3,6 +3,7 @@ import json
 import random
 import re
 import time
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -43,6 +44,15 @@ class OpenAIClient:
         # gpt-4o, gpt-4, text-davinci-002-render-sha
         self.current_model = None
 
+        # 刚开始先设置默认值
+        if config.OPENAI_LOGIN_TYPE == "nologin":
+            self._supported_model = ["gpt-3.5-turbo"]
+        else:
+            self._supported_model = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
+
+        # gpt-4o模型可使用时间
+        self.reset_after = None
+
     async def post_init(self):
         await self.setup_listener()
         await self.setup_route()
@@ -59,32 +69,69 @@ class OpenAIClient:
         )
         await login_obj.begin()
 
+    def supported_model(self) -> list[str]:
+        if self.reset_after != None and datetime.now(timezone.utc) > self.reset_after:
+            if self.account_type == "chatgptfreeplan":
+                self._supported_model = ["gpt-3.5-turbo", "gpt-4o"]
+            else:
+                self._supported_model = ["gpt-3.5-turbo", "gpt-4o", "gpt-4"]
+            self.reset_after = None
+
+        return self._supported_model
+
     async def __handle_response(self, response: Response):
         path = urlparse(response.url).path
-        if path == "/backend-api/sentinel/chat-requirements":
-            # 获取账户类型 freeaccount, paid
+        if path.startswith("/backend-api/accounts/check"):
+            # 获取模型限制情况
+            # 获取账户类型 chatgptfreeplan, chatgptplusplan
+
             # 不要用 await response.finish()等待response完成，有时会死循环,报错就等下一次
             _body = await response.json()
 
-            # chatgpt-freeaccount or chatgpt-paid
-            self.account_type = _body.get("persona")
-            logger.info(
-                f"[OpenAIClient.__handle_response] Your acount is {self.account_type}"
-            )
+            default_account = _body.get("accounts").get("default")
 
-            if self.account_type == "chatgpt-paid":
-                model_locator = self.playwright_page.locator(
-                    'div[type="button"][aria-haspopup="menu"]', has_text="ChatGPT"
+            # 获取账户类型 chatgptfreeplan, chatgptplusplan
+            if self.account_type == None:
+                entitlement = default_account.get("entitlement")
+                self.account_type = entitlement.get("subscription_plan")
+                logger.info(
+                    f"[OpenAIClient.__handle_response] Your acount is {self.account_type}"
                 )
-                if model_locator and await model_locator.is_visible():
-                    _text_content = await model_locator.text_content()
-                    self.current_model = {
-                        "ChatGPT 4o": "gpt-4o",
-                        "ChatGPT 4": "gpt-4",
-                        "ChatGPT 3.5": "text-davinci-002-render-sha",
-                    }.get(_text_content, "gpt-4o")
 
-            self.playwright_page.remove_listener("response", self.__handle_response)
+                if self.account_type != "chatgptfreeplan":
+                    model_locator = self.playwright_page.locator(
+                        'div[type="button"][aria-haspopup="menu"]', has_text="ChatGPT"
+                    )
+                    if model_locator and await model_locator.is_visible():
+                        _text_content = await model_locator.text_content()
+                        self.current_model = {
+                            "ChatGPT 4o": "gpt-4o",
+                            "ChatGPT 4": "gpt-4",
+                            "ChatGPT 3.5": "text-davinci-002-render-sha",
+                        }.get(_text_content, "gpt-4o")
+
+            # 获取模型限制情况
+            rate_limits = default_account.get("rate_limits", [])
+            rate_limits = [
+                _
+                for _ in rate_limits
+                if _.get("limit_details", {}).get("type", "") == "model_limit"
+            ]
+            if len(rate_limits) == 0:
+                # 没有限制
+                if self.account_type == "chatgptfreeplan":
+                    self._supported_model = ["gpt-3.5-turbo", "gpt-4o"]
+                else:
+                    self._supported_model = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
+            else:
+                self.reset_after = datetime.fromisoformat(
+                    next(_.get("resets_after") for _ in rate_limits)
+                )
+                if self.account_type == "chatgptfreeplan":
+                    self._supported_model = ["gpt-3.5-turbo"]
+                else:
+                    # TODO
+                    self._supported_model = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
 
     async def setup_listener(self):
         if config.OPENAI_LOGIN_TYPE == "email":
@@ -92,24 +139,24 @@ class OpenAIClient:
 
     async def __handle_route(self, route):
         request = route.request
+        url = (
+            "/backend-api/conversation"
+            if self.account_type
+            else "/backend-anon/conversation"
+        )
+
+        request_headers = await request.all_headers()
         headers = {
+            # "accept-encoding": "gzip, deflate, br",
             "authority": "chatgpt.com",
             "accept-language": "en-US,en;q=0.9",
+            **request_headers,
+            # sec-fetch系列头部
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-origin",
-            **request.headers,
         }
-        # for header, value in headers.items():
-        #     print(f"{header}: {value}")
-
         try:
-            url = (
-                "/backend-api/conversation"
-                if self.account_type
-                else "/backend-anon/conversation"
-            )
-
             json_body = request.post_data_json
             if self.messages and len(self.messages) > 1:
                 json_body["messages"] = [
@@ -131,24 +178,24 @@ class OpenAIClient:
             ) as response:
                 response_headers = response.headers
                 if response.status_code != 200:
-                    logger.error(
-                        "[OpenAIClient.__handle_route] HTTP request failed with status: ",
-                        response.status_code,
-                    )
                     self.ready_to_read.set()
+                    message = b""
+                    async for _ in response.aiter_bytes():
+                        message += _
+
+                    message = message.decode("utf-8")
+                    logger.error(
+                        f"[OpenAIClient.__handle_route] HTTP request failed. status: {str(response.status_code)}. message: {message}",
+                    )
                     if response.status_code == 403:
-                        message = ""
-                        async for _ in response.aiter_text():
-                            message += _
-                        logger.error(
-                            f"[OpenAI.Client.__handle_route] response body: {message}"
-                        )
                         await self.playwright_page.reload()
                         await self.playwright_page.wait_for_load_state("load")
                         await self.login()
-                    raise Exception(
-                        "[OpenAIClient.__handle_route] HTTP request failed with status: ",
-                        response.status_code,
+
+                    await route.fulfill(
+                        status=response.status_code,
+                        headers=dict(response_headers),
+                        body=message,
                     )
 
                 logger.info("[OpenAIClient.__handle_route] Conversation response is ok")
@@ -156,21 +203,26 @@ class OpenAIClient:
                 self.ready_to_read.set()
 
                 await asyncio.wait_for(self.read_complete.wait(), timeout=self.timeout)
+
+                logger.info("[OpenAIClient.__handle_route] Write response to page")
+                self.origin_response.append("data: [DONE]")
+
+                response_body = "".join([f"{_}\n\n" for _ in self.origin_response])
+                await route.fulfill(
+                    status=response.status_code,
+                    headers=dict(response_headers),
+                    body=response_body,
+                )
         except asyncio.TimeoutError:
             logger.error(
                 "[OpenAIClient.__handle_route] Timeout while waiting for read completion"
             )
-        finally:
-            logger.info("[OpenAIClient.__handle_route] Write response to page")
-            self.origin_response.append("data: [DONE]\n\n")
-
-            response_body = "".join([f"{_}\n\n" for _ in self.origin_response])
             await route.fulfill(
-                status=response.status_code,
-                headers=dict(response_headers),
-                body=response_body,
+                status=408,
+                headers={"Content-Type": "text/plain"},
+                body="Timeout",
             )
-
+        finally:
             # 开启新对话
             await self.new_conversation()
 
@@ -342,6 +394,14 @@ class OpenAIClient:
                         .get("model_slug", final_model)
                     )
 
+                    # 有时候模型check不一定触发
+                    if (
+                        self.account_type == "chatgptfreeplan"
+                        and model != "gpt-3.5-turbo"
+                        and final_model == "text-davinci-002-render-sha"
+                    ):
+                        self._supported_model = ["gpt-3.5-turbo"]
+
                     if status == "finished_successfully":
                         finish_details_type = (
                             parsed.get("message", {})
@@ -437,7 +497,7 @@ class OpenAIClient:
         return messages[-1].get("content")
 
     async def change_model(self, model_name: str):
-        if self.account_type != "chatgpt-paid":
+        if self.account_type == "chatgptfreeplan":
             return
 
         model_map = {

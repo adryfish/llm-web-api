@@ -10,8 +10,8 @@ ENABLED_PROVIDER = os.getenv("ENABLED_PROVIDER", "openai").split(",")
 PROXY_SERVER = os.getenv("PROXY_SERVER", None)
 
 NO_GUI = os.getenv("NO_GUI", "false").lower() == "true"
-SCREEN_WIDTH = int(os.getenv("SCREEN_WIDTH", "1080"))
-SCREEN_HEIGHT = int(os.getenv("SCREEN_HEIGHT", "1920"))
+SCREEN_WIDTH = int(os.getenv("SCREEN_WIDTH", "1920"))
+SCREEN_HEIGHT = int(os.getenv("SCREEN_HEIGHT", "1080"))
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 USER_AGENT = os.getenv("USER_AGENT", None)
 SAVE_LOGIN_STATE = os.getenv("SAVE_LOGIN_STATE", True)

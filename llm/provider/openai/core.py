@@ -28,10 +28,9 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
         self.index_url = "https://chatgpt.com"
         self.https_proxy = config.PROXY_SERVER
 
-        if config.OPENAI_LOGIN_TYPE == "nologin":
-            self.supported_model = ["gpt-3.5-turbo"]
-        else:
-            self.supported_model = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
+    @property
+    def supported_model(self) -> list[str]:
+        return self.openai_client.supported_model()
 
     async def start(self) -> None:
         self.playwright = await async_playwright().start()
@@ -112,7 +111,7 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
                 accept_downloads=True,
                 headless=headless,
                 proxy=playwright_proxy,
-                # viewport={"width": config.SCREEN_WIDTH, "height": config.SCREEN_HEIGHT},
+                viewport={"width": config.SCREEN_WIDTH, "height": config.SCREEN_HEIGHT},
                 user_agent=user_agent,
                 channel="chrome",
                 # https://peter.sh/experiments/chromium-command-line-switches/
@@ -129,7 +128,7 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
                 ignore_default_args=["--enable-automation"],
             )
             browser_context = await browser.new_context(
-                # viewport={"width": config.SCREEN_WIDTH, "height": config.SCREEN_HEIGHT},
+                viewport={"width": config.SCREEN_WIDTH, "height": config.SCREEN_HEIGHT},
                 user_agent=user_agent,
             )
             return browser_context

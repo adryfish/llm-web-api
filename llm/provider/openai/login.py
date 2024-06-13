@@ -1,4 +1,5 @@
 import asyncio
+import random
 from typing import Optional
 
 from playwright.async_api import Page
@@ -64,6 +65,7 @@ class OpenAILogin:
             await asyncio.sleep(5)
 
     async def login_by_email(self):
+        await self.context_page.wait_for_load_state("load")
         # 2024-05-28
         # 某些客户端打开首页后会弹出一个登录的dialog
         dialog = self.context_page.locator('div[role="dialog"]')
@@ -97,6 +99,8 @@ class OpenAILogin:
         await self.context_page.locator(".continue-btn").click()
         await self.context_page.wait_for_load_state("load")
 
+        # 有时候会很快，容易被抓住，加入随机休眠时间
+        await asyncio.sleep(random.uniform(0.5, 2.0))
         await self.context_page.locator("#password").click()
         await self.context_page.locator("#password").fill(self.password)
 

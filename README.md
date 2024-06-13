@@ -18,7 +18,7 @@
 与ChatGPT接口完全兼容。
 
 ## 原理
-利用[DrissionPage](https://github.com/g1879/DrissionPage)模拟浏览器登录破解cloudflare 5s盾，成功后将cookie注入[Playwright](https://playwright.dev/)控制的浏览器中。通过模拟用户操作获取请求参数，使用httpx发送获取流式请求响应。
+利用[DrissionPage](https://github.com/g1879/DrissionPage)模拟浏览器登录破解`Cloudflare` 5s盾，成功后将`cookie`注入[Playwright](https://playwright.dev/)控制的浏览器中。通过模拟用户操作获取请求参数，使用`httpx`发送获取流式请求响应。
 通过使用此方式，免去了复现核心加密JS代码，逆向难度大大降低。
 
 ## 使用方法
@@ -27,7 +27,7 @@
 #### 使用Docker运行
 
 ```shell
-docker run --name llm-web-api --rm -it 5000:5000 adryfish/llm-web-api
+docker run --name llm-web-api --rm -it -p 5000:5000 adryfish/llm-web-api
 ```
 
 #### 使用Docker compose
@@ -235,9 +235,9 @@ keepalive_timeout 120;
 </div>
 
 ## 参考
-  - 社媒爬虫 [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler)
-  - cloudflare破解 [CloudflareBypassForScraping](CloudflareBypassForScraping)
-  - ChatGPT逆向接口服务 [ChatGPT](https://github.com/PawanOsman/ChatGPT)
+  - MediaCrawler: https://github.com/NanmiCoder/MediaCrawler
+  - Cloudflare突破: https://github.com/sarperavci/CloudflareBypassForScraping
+  - ChatGPT逆向接口服务: https://github.com/PawanOsman/ChatGPT
 
 ## 免责声明
 
