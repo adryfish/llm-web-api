@@ -1,3 +1,15 @@
+## v1.1.0
+
+`2024-06-16`
+
+## Feature
+  - 支持监听Websocket
+  - 使用Javascript Fetch API发送conversation请求
+  - 动态显示支持模型。(解释: 免费用户如果gpt-4o额度使用完，再发送gpt-4o请求则报不支持的模型错误，限制到期后可再发送)
+
+## Removed
+  - httpx发送conversation请求(python库请求可能会被指纹识别)
+
 ## v1.0.5
 
 `2024-06-04`

@@ -1,18 +1,30 @@
 import asyncio
+import base64
 import json
 import random
 import re
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
-import httpx
 from playwright.async_api import Page, Response
 
 from llm import config
 from llm.logger import logger
 from llm.provider.openai.login import OpenAILogin
+
+
+@dataclass
+class ConversationResponse:
+    status: int
+    headers: dict[str, str] = field(default_factory=dict)
+    # 流式响应，不断追加
+    stream: list = field(default_factory=list)
+    # 完整响应，可能是error，也可能是websocket json
+    content: Optional[str] = None
+    is_websocket: bool = field(default=False)
 
 
 class OpenAIClient:
@@ -27,17 +39,15 @@ class OpenAIClient:
         self.timeout = timeout
         self._host = "https://chatgpt.com"
         self.playwright_page = playwright_page
-        self.http_client = httpx.AsyncClient(
-            base_url=self._host, proxy=self.proxies, timeout=self.timeout
-        )
 
         self.lock = asyncio.Lock()
 
-        self.response_stream = None
         self.messages = None
         self.ready_to_read = asyncio.Event()  # 事件：通知开始读取
         self.read_complete = asyncio.Event()  # 事件：通知读取完成
-        self.origin_response = []
+        self.queue = asyncio.Queue()  # SSE和Websocket读取的响应放在这里
+        self.conversation_response: ConversationResponse = None
+        self.forward_request = False
 
         # 登录账户类型，如果是免费用户，没有切换模型的必要
         self.account_type = None
@@ -54,6 +64,8 @@ class OpenAIClient:
         self.reset_after = None
 
     async def post_init(self):
+        await self.setup_expose_function()
+        await self.setup_websocket()
         await self.setup_listener()
         await self.setup_route()
         await self.playwright_page.goto(self._host)
@@ -78,6 +90,86 @@ class OpenAIClient:
             self.reset_after = None
 
         return self._supported_model
+
+    async def setup_expose_function(self):
+        def handle_start(status: int, headers: dict, content: str, is_websocket: bool):
+            self.conversation_response = ConversationResponse(
+                status=status,
+                headers=headers,
+                stream=[],
+                content=content,
+                is_websocket=is_websocket,
+            )
+
+            if status != 200:
+                logger.error(
+                    f"[OpenAIClient.__handle_route] HTTP request failed. status: {str(status)}. message: {content}",
+                )
+            elif is_websocket:
+                logger.info(
+                    f"[OpenAIClient.__handle_route] Get websocket response: {content}"
+                )
+                self.ready_to_read.set()
+            else:
+                logger.info("[OpenAIClient.__handle_route] Get event-stream Response")
+                self.ready_to_read.set()
+
+        async def handle_chunk(chunk):
+            self.conversation_response.stream.append(chunk)
+            await self.queue.put(chunk)
+
+        def handle_complete():
+            logger.info("[OpenAIClient.__handle_route] Event-stream end fetch")
+            self.read_complete.set()
+
+        await self.playwright_page.expose_function("handleStart", handle_start)
+        await self.playwright_page.expose_function("handleChunk", handle_chunk)
+        await self.playwright_page.expose_function("handleComplete", handle_complete)
+
+    async def stream_generator(self):
+        while not self.read_complete.is_set():
+            try:
+                frame_data = await asyncio.wait_for(self.queue.get(), timeout=1)
+                yield frame_data
+            except TimeoutError:
+                continue
+
+        yield "data: [DONE]"
+
+    async def __process_frame(self, frame):
+        _json = json.loads(frame)
+        # 非message的frame不处理
+        if _json.get("type") != "message":
+            return
+
+        _body = _json.get("data", {}).get("body")
+        real_body = base64.b64decode(_body).decode("utf-8")
+
+        if real_body.startswith("data: [DONE]"):
+            logger.info("[OpenAIClient.__handle_route] Websocket end fetch")
+            self.read_complete.set()
+
+        await self.queue.put(real_body)
+
+    async def setup_websocket(self):
+        # 监听 WebSocket 事件
+        self.playwright_page.on(
+            "websocket", lambda ws: logger.info(f"WebSocket connected: {ws.url}")
+        )
+        self.playwright_page.on(
+            "websocket",
+            lambda ws: ws.on("framereceived", self.__process_frame),
+        )
+        # self.playwright_page.on(
+        #     "websocket",
+        #     lambda ws: ws.on("framesent", lambda frame: print(f"Frame sent: {frame}")),
+        # )
+        self.playwright_page.on(
+            "websocket",
+            lambda ws: ws.on(
+                "close", lambda: logger.info(f"WebSocket closed: {ws.url}")
+            ),
+        )
 
     async def __handle_response(self, response: Response):
         path = urlparse(response.url).path
@@ -138,7 +230,13 @@ class OpenAIClient:
             self.playwright_page.on("response", self.__handle_response)
 
     async def __handle_route(self, route):
+        # 重入的请求，是自己使用Fetch API发送的
+        if self.forward_request:
+            await route.continue_()
+            return
+
         request = route.request
+        self.forward_request = True
         url = (
             "/backend-api/conversation"
             if self.account_type
@@ -156,6 +254,7 @@ class OpenAIClient:
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-origin",
         }
+        headers_str = json.dumps(headers)
         try:
             json_body = request.post_data_json
             if self.messages and len(self.messages) > 1:
@@ -169,50 +268,79 @@ class OpenAIClient:
                     }
                     for message in self.messages
                 ]
+            json_body_str = json.dumps(json_body)
 
-            async with self.http_client.stream(
-                "POST",
-                url,
-                headers=headers,
-                json=json_body,
-            ) as response:
-                response_headers = response.headers
-                if response.status_code != 200:
-                    self.ready_to_read.set()
-                    message = b""
-                    async for _ in response.aiter_bytes():
-                        message += _
+            javascript_code = (
+                """
+                (async () => {
+                    const response = await fetch("{url}", {
+                        method: 'POST',
+                        headers: {headers},
+                        body: JSON.stringify({body}),
+                    })
+                    const responseHeaders = Object.fromEntries(response.headers.entries())
 
-                    message = message.decode("utf-8")
-                    logger.error(
-                        f"[OpenAIClient.__handle_route] HTTP request failed. status: {str(response.status_code)}. message: {message}",
-                    )
-                    if response.status_code == 403:
-                        await self.playwright_page.reload()
-                        await self.playwright_page.wait_for_load_state("load")
-                        await self.login()
+                    // 错误处理
+                    if (!response.ok) {
+                        const text = await response.text()
+                        await window.handleStart(response.status, responseHeaders, text, false)
+                        return
+                    } 
 
-                    await route.fulfill(
-                        status=response.status_code,
-                        headers=dict(response_headers),
-                        body=message,
-                    )
+                    // 处理Websocket
+                    const contentType = response.headers.get('Content-Type')
+                    if (contentType.includes('application/json')) {
+                        const data = await response.json()
+                        await window.handleStart(response.status, responseHeaders, data, true)
+                        return
+                    }
 
-                logger.info("[OpenAIClient.__handle_route] Conversation response is ok")
-                self.response_stream = response.aiter_text()
-                self.ready_to_read.set()
+                    await window.handleStart(response.status, responseHeaders, null, false)
 
-                await asyncio.wait_for(self.read_complete.wait(), timeout=self.timeout)
+                    const reader = response.body.getReader()
+                    const decoder = new TextDecoder()
 
-                logger.info("[OpenAIClient.__handle_route] Write response to page")
-                self.origin_response.append("data: [DONE]")
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break
 
-                response_body = "".join([f"{_}\n\n" for _ in self.origin_response])
-                await route.fulfill(
-                    status=response.status_code,
-                    headers=dict(response_headers),
-                    body=response_body,
+                        const textChunk = decoder.decode(value, { stream: true })
+                        await window.handleChunk(textChunk)
+                    }
+                    await window.handleComplete()
+                })()
+            """.replace(
+                    "{url}", url
                 )
+                .replace("{headers}", headers_str)
+                .replace("{body}", json_body_str)
+            )
+
+            await self.playwright_page.evaluate(javascript_code)
+
+            # error 或者 websocket 直接返回
+            if (
+                self.conversation_response.status != 200
+                or self.conversation_response.is_websocket
+            ):
+                await route.fulfill(
+                    status=self.conversation_response.status,
+                    headers=self.conversation_response.headers,
+                    body=json.dumps(
+                        self.conversation_response.content, ensure_ascii=False
+                    ),
+                )
+                return
+
+            logger.info("[OpenAIClient.__handle_route] Write response to page")
+            self.conversation_response.stream.append("data: [DONE]")
+
+            response_body = "".join(self.conversation_response.stream)
+            await route.fulfill(
+                status=self.conversation_response.status,
+                headers=self.conversation_response.headers,
+                body=response_body,
+            )
         except asyncio.TimeoutError:
             logger.error(
                 "[OpenAIClient.__handle_route] Timeout while waiting for read completion"
@@ -256,7 +384,6 @@ class OpenAIClient:
                 if line == "data: [DONE]":
                     break
                 if line.startswith("data: "):
-                    self.origin_response.append(line)
                     yield line
                 previous = previous[eol_index + 1 :]
 
@@ -291,11 +418,15 @@ class OpenAIClient:
             raise Exception("Too many requests. please slow down.")
 
         logger.info("[OpenAIClient.create_completion] Start chat_completion")
-        self.response_stream = None
+
         self.messages = None
         self.ready_to_read.clear()
         self.read_complete.clear()
-        self.origin_response = []
+        self.queue = asyncio.Queue()
+        self.conversation_response = None
+
+        # 拦截第一个请求，放行重入请求
+        self.forward_request = False
         try:
             # 上一个对话结束时就已经开启新对话,但是可能存在不成功的情况，这里重试一下
             # 对于非登录用户，无法判断页面是否已经刷新，索性就跳过，这样会节约响应时间
@@ -333,8 +464,7 @@ class OpenAIClient:
 
             await asyncio.wait_for(self.ready_to_read.wait(), timeout=self.timeout)
 
-            if not self.response_stream:
-                # 说明resonse code不是200
+            if self.conversation_response.status != 200:
                 raise Exception(
                     "[OpenAIClient.create_completion] response stream is None"
                 )
@@ -354,7 +484,7 @@ class OpenAIClient:
                 nonlocal finish_reason
                 nonlocal final_model
                 nonlocal created
-                async for message in self.stream_completion(self.response_stream):
+                async for message in self.stream_completion(self.stream_generator()):
                     if re.match(
                         r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$", message
                     ):

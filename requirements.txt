@@ -4,6 +4,5 @@ pyjwt
 pytz
 dacite
 playwright
-httpx[http2]
 DrissionPage
 xvfbwrapper==0.2.9; platform_system != "Windows"

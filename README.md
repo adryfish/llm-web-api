@@ -14,11 +14,13 @@
  - 高速流式输出
  - 模型切换
  - 多轮对话
+ - 动态显示支持模型
+ - 监听event-stream,websocket两种响应
 
 与ChatGPT接口完全兼容。
 
 ## 原理
-利用[DrissionPage](https://github.com/g1879/DrissionPage)模拟浏览器登录破解`Cloudflare` 5s盾，成功后将`cookie`注入[Playwright](https://playwright.dev/)控制的浏览器中。通过模拟用户操作获取请求参数，使用`httpx`发送获取流式请求响应。
+利用[DrissionPage](https://github.com/g1879/DrissionPage)模拟浏览器登录破解`Cloudflare` 5s盾，成功后将`cookie`注入[Playwright](https://playwright.dev/)控制的浏览器中。模拟用户操作并监听响应结果。
 通过使用此方式，免去了复现核心加密JS代码，逆向难度大大降低。
 
 ## 使用方法
