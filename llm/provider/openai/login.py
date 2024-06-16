@@ -66,6 +66,7 @@ class OpenAILogin:
 
     async def login_by_email(self):
         await self.context_page.wait_for_load_state("load")
+        await asyncio.sleep(1)
         # 2024-05-28
         # 某些客户端打开首页后会弹出一个登录的dialog
         dialog = self.context_page.locator('div[role="dialog"]')
@@ -104,6 +105,7 @@ class OpenAILogin:
         await self.context_page.locator("#password").click()
         await self.context_page.locator("#password").fill(self.password)
 
+        await asyncio.sleep(random.uniform(0.5, 2.0))
         await self.context_page.locator("button._button-login-password").click()
 
         await self.context_page.wait_for_load_state("load")

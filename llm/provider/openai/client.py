@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import os
 import random
 import re
 import time
@@ -9,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
+from fastapi import Request
 from playwright.async_api import Page, Response
 
 from llm import config
@@ -171,6 +173,27 @@ class OpenAIClient:
             ),
         )
 
+    async def __handle_request(self, request: Request):
+        url_path = urlparse(request.url).path
+
+        ignore_suffixes = {
+            ".css",
+            ".js",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".svg",
+            ".ico",
+            # 统计接口
+            "/v1/rgstr",
+            "/ces/v1/t",
+            "/ces/v1/p",
+        }
+
+        if not any(url_path.endswith(suffix) for suffix in ignore_suffixes):
+            logger.debug(f"{request.method} {request.url}")
+
     async def __handle_response(self, response: Response):
         path = urlparse(response.url).path
         if path.startswith("/backend-api/accounts/check"):
@@ -228,6 +251,9 @@ class OpenAIClient:
     async def setup_listener(self):
         if config.OPENAI_LOGIN_TYPE == "email":
             self.playwright_page.on("response", self.__handle_response)
+
+        if config.env == "dev":
+            self.playwright_page.on("request", self.__handle_request)
 
     async def __handle_route(self, route):
         # 重入的请求，是自己使用Fetch API发送的
@@ -616,8 +642,24 @@ class OpenAIClient:
             await self.playwright_page.reload()
             await self.login()
         except Exception as e:
-            logger.error("[OpenAIClient.chat_completion] Error happened")
-            print(e)
+            logger.error(
+                f"[OpenAIClient.chat_completion] Error happened. message: {str(e)}",
+                exc_info=True,
+            )
+            # save screenshot and html
+            error_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            error_file = os.path.join(config.BROWSER_DATA, "error", error_time)
+
+            await self.playwright_page.screenshot(path=f"{error_file}.png")
+
+            content = await self.playwright_page.content()
+            with open(f"{error_file}.html", "w") as f:
+                f.write(content)
+
+            logger.error(
+                f"[OpenAIClient.chat_completion] Error screenshot: {error_file}.png. html: {error_file}.html"
+            )
+
             raise e
         finally:
             self.lock.release()

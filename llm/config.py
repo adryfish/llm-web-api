@@ -20,7 +20,8 @@ BROWSER_PATH = os.getenv("BROWSER_PATH", None)
 BROWSER_DATA = os.path.join(os.getenv("BROWSER_DATA", os.getcwd()), "browser_data")
 os.makedirs(BROWSER_DATA, exist_ok=True)
 
-env = os.getenv("env", "prod")
+env = os.getenv("env", "production")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO" if env != "dev" else "DEBUG").upper()
 
 
 OPENAI_LOGIN_TYPE = os.getenv("OPENAI_LOGIN_TYPE", "nologin")
