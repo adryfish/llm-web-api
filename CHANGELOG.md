@@ -1,3 +1,13 @@
+## v1.1.2
+
+`2024-06-17`
+
+## Feature
+  - Debug增强: 多打印debug日志，出错自动截图保存
+
+## Enhancement
+  - 更新Dockerfile
+
 ## v1.1.0
 
 `2024-06-16`
