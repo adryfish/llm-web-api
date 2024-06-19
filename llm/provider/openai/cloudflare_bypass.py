@@ -12,21 +12,8 @@ class CloudflareBypass:
     def __init__(
         self, proxy_server: Optional[str] = None, user_agent: Optional[str] = None
     ):
-        browser_path = config.BROWSER_PATH
-        if not browser_path:
-            os_name = platform.system().lower()
-            if "windows" in os_name:
-                browser_path = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-            elif "darwin" in os_name:
-                browser_path = (
-                    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-                )
-            else:
-                # linux like
-                browser_path = "/usr/bin/google-chrome"
-
         options = ChromiumOptions()
-        options.set_paths(browser_path=browser_path)
+        options.set_paths(browser_path=config.BROWSER_PATH)
 
         # https://stackoverflow.com/questions/68289474/selenium-headless-how-to-bypass-cloudflare-detection-using-selenium
         if config.HEADLESS:

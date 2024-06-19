@@ -1,4 +1,5 @@
 import os
+import platform
 
 from dotenv import load_dotenv
 
@@ -16,7 +17,19 @@ HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 USER_AGENT = os.getenv("USER_AGENT", None)
 SAVE_LOGIN_STATE = os.getenv("SAVE_LOGIN_STATE", True)
 
-BROWSER_PATH = os.getenv("BROWSER_PATH", None)
+
+def get_default_browser_path():
+    os_name = platform.system().lower()
+    if "windows" in os_name:
+        return r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    elif "darwin" in os_name:
+        return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    else:
+        return "/usr/bin/google-chrome"
+
+
+BROWSER_PATH = os.getenv("BROWSER_PATH", get_default_browser_path())
+
 BROWSER_DATA = os.path.join(os.getenv("BROWSER_DATA", os.getcwd()), "browser_data")
 os.makedirs(BROWSER_DATA, exist_ok=True)
 
