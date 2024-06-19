@@ -1,3 +1,22 @@
+## v1.1.6
+
+`2024-06-19`
+
+## Feature
+  - 多轮对话控制
+
+## Enhancement
+  - 更新Dockerfile: chrome可以显示中文字体
+  - 优化BROWSER_PATH获取
+  - 优化登录流程
+  - 优化request headers
+  - 获取锁不等待
+  - 使用Enter键提交对话，而非点击按钮
+
+## BugFix
+  - 输入密码后有时会不提交登录
+
+
 ## v1.1.2
 
 `2024-06-17`

@@ -42,7 +42,7 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
             config.USER_AGENT,
             headless=config.HEADLESS,
         )
-        self.browser_context.set_default_timeout(180_000)
+        self.browser_context.set_default_timeout(120_000)
         # doesn't work now
         # stealth.min.js is a js script to prevent the website from detecting the crawler.
         # await self.browser_context.add_init_script(
@@ -53,7 +53,7 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
         )
 
         self.context_page = await self.browser_context.new_page()
-        self.context_page.set_default_timeout(180_000)
+        self.context_page.set_default_timeout(120_000)
 
         user_agent = await self.context_page.evaluate("navigator.userAgent")
         if "HEADLESS" in user_agent:

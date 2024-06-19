@@ -33,7 +33,7 @@ class ConversationResponse:
 class OpenAIClient:
     def __init__(
         self,
-        timeout=180,
+        timeout=120,
         proxy=None,
         *,
         playwright_page: Page,
@@ -271,30 +271,22 @@ class OpenAIClient:
         )
 
         request_headers = await request.all_headers()
-        headers = {
-            # "accept-encoding": "gzip, deflate, br",
-            "authority": "chatgpt.com",
-            "accept-language": "en-US,en;q=0.9",
-            **request_headers,
-            # sec-fetch系列头部
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-        }
-        headers_str = json.dumps(headers)
+        headers_str = json.dumps(request_headers)
         try:
             json_body = request.post_data_json
-            if self.messages and len(self.messages) > 1:
-                json_body["messages"] = [
-                    {
-                        "author": {"role": message["role"]},
-                        "content": {
-                            "content_type": "text",
-                            "parts": [message["content"]],
-                        },
-                    }
-                    for message in self.messages
-                ]
+            # 多轮对话
+            if config.ENABLE_MULTI_TURN_CONVERSATION:
+                if self.messages and len(self.messages) > 1:
+                    json_body["messages"] = [
+                        {
+                            "author": {"role": message["role"]},
+                            "content": {
+                                "content_type": "text",
+                                "parts": [message["content"]],
+                            },
+                        }
+                        for message in self.messages
+                    ]
             json_body_str = json.dumps(json_body)
 
             javascript_code = (
@@ -427,10 +419,8 @@ class OpenAIClient:
         self, model: str, messages: list[dict[str, any]], stream: Optional[bool] = False
     ) -> dict[str, any]:
 
-        try:
-            await asyncio.wait_for(self.lock.acquire(), timeout=1)
-        except TimeoutError:
-            message = {
+        if self.lock.locked():
+            error_message = {
                 "status": False,
                 "error": {
                     "message": "Too many requests. please slow down.",
@@ -438,12 +428,13 @@ class OpenAIClient:
                 },
                 "support": "https://github.com/adryfish/llm-web-api",
             }
-            logger.error(message)
+            logger.error(error_message)
 
             # TODO
             # 用一个具体的异常类
             raise Exception("Too many requests. please slow down.")
 
+        await self.lock.acquire()
         logger.info("[OpenAIClient.create_completion] Start chat_completion")
 
         self.messages = None
@@ -457,7 +448,10 @@ class OpenAIClient:
         try:
             # 上一个对话结束时就已经开启新对话,但是可能存在不成功的情况，这里重试一下
             # 对于非登录用户，无法判断页面是否已经刷新，索性就跳过，这样会节约响应时间
-            if config.OPENAI_LOGIN_TYPE == "email":
+            if (
+                self.openai_login.persona
+                and self.openai_login.persona != "chatgpt-noauth"
+            ):
                 await self.new_conversation()
                 await self.change_model(model)
 
@@ -467,29 +461,9 @@ class OpenAIClient:
             await prompt_textarea.click()
             await prompt_textarea.fill(content)
 
-            # 寻找submit button并点击
-            submit_button = self.playwright_page.locator(
-                'button[data-testid="fruitjuice-send-button"], button[data-testid="send-button"]'
-            )
-            if await submit_button.count() == 1 and await submit_button.is_visible():
-                await submit_button.click()
-            else:
-                # 没找到就点击form的最后一个按钮
-                logger.warn(
-                    f"Cannot find submit button. Account type {self.account_type}"
-                )
-                form = self.playwright_page.locator("form")
-                buttons = form.locator("button")
-                button_count = await buttons.count()
-                submit_button = buttons.nth(button_count - 1)
-                if await submit_button.is_visible():
-                    await submit_button.click()
-                else:
-                    raise Exception(
-                        "[OpenAIClient.create_completion] Cannot submit the content"
-                    )
+            await prompt_textarea.press("Enter", timeout=5000)
 
-            await asyncio.wait_for(self.ready_to_read.wait(), timeout=self.timeout)
+            await asyncio.wait_for(self.ready_to_read.wait(), timeout=60)
 
             if self.conversation_response.status != 200:
                 raise Exception(
@@ -518,7 +492,6 @@ class OpenAIClient:
                         continue  # Skip heartbeat detection
 
                     parsed = json.loads(message)
-                    # print(parsed)
                     if parsed.get("error"):
                         error = f"Error message from OpenAI: {parsed['error']}"
                         finish_reason = "stop"
@@ -641,11 +614,13 @@ class OpenAIClient:
         except TimeoutError as e:
             logger.error("[OpenAIClient.chat_completion] wait timeout")
             await self.playwright_page.reload()
-            await self.login()
         except Exception as e:
             logger.error(
                 f"[OpenAIClient.chat_completion] Error happened. message: {str(e)}",
                 exc_info=True,
+            )
+            logger.error(
+                f"[OpenAIClient.chat_completion] prams: model={model}, message={json.dumps(messages, ensure_ascii=False)}, stream={stream}"
             )
             await screenshot(self.playwright_page)
 

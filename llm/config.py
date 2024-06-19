@@ -33,6 +33,10 @@ BROWSER_PATH = os.getenv("BROWSER_PATH", get_default_browser_path())
 BROWSER_DATA = os.path.join(os.getenv("BROWSER_DATA", os.getcwd()), "browser_data")
 os.makedirs(BROWSER_DATA, exist_ok=True)
 
+ENABLE_MULTI_TURN_CONVERSATION = (
+    os.getenv("ENABLE_MULTI_TURN_CONVERSATION", "true").lower() == "true"
+)
+
 env = os.getenv("env", "production")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO" if env != "dev" else "DEBUG").upper()
 

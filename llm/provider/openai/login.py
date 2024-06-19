@@ -49,6 +49,9 @@ class OpenAILogin:
             self.persona = json_body.get("persona")
             self.persona_ready.set()
 
+            # if self.persona == "chatgpt-noauth" and self.login_type == "email":
+            #     await self.begin()
+
     async def begin(self):
         logger.info("[OpenAILogin.begin] OpenAILogin start...")
         await self.bypass_cloudflare()
@@ -123,9 +126,6 @@ class OpenAILogin:
 
             await asyncio.sleep(random.uniform(0.5, 2.0))
 
-            # login_password_button = self.context_page.locator(
-            #     "button._button-login-password"
-            # )
             login_password_button = self.context_page.locator("button:text('Continue')")
             self.persona_ready.clear()
             await login_password_button.click()
