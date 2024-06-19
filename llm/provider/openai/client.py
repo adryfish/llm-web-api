@@ -16,6 +16,7 @@ from playwright.async_api import Page, Response
 from llm import config
 from llm.logger import logger
 from llm.provider.openai.login import OpenAILogin
+from llm.provider.openai.playwright_utils import screenshot
 
 
 @dataclass
@@ -41,6 +42,14 @@ class OpenAIClient:
         self.timeout = timeout
         self._host = "https://chatgpt.com"
         self.playwright_page = playwright_page
+
+        self.openai_login = OpenAILogin(
+            context_page=self.playwright_page,
+            login_type=config.OPENAI_LOGIN_TYPE,
+            email=config.OPENAI_LOGIN_EMAIL,
+            password=config.OPENAI_LOGIN_PASSWORD,
+            proxies=self.proxies,
+        )
 
         self.lock = asyncio.Lock()
 
@@ -70,18 +79,10 @@ class OpenAIClient:
         await self.setup_websocket()
         await self.setup_listener()
         await self.setup_route()
+        await self.openai_login.post_init()
         await self.playwright_page.goto(self._host)
-        await self.login()
-
-    async def login(self):
-        login_obj = OpenAILogin(
-            context_page=self.playwright_page,
-            login_type=config.OPENAI_LOGIN_TYPE,
-            email=config.OPENAI_LOGIN_EMAIL,
-            password=config.OPENAI_LOGIN_PASSWORD,
-            proxies=self.proxies,
-        )
-        await login_obj.begin()
+        await self.playwright_page.wait_for_load_state("load")
+        await self.openai_login.begin()
 
     def supported_model(self) -> list[str]:
         if self.reset_after != None and datetime.now(timezone.utc) > self.reset_after:
@@ -646,19 +647,7 @@ class OpenAIClient:
                 f"[OpenAIClient.chat_completion] Error happened. message: {str(e)}",
                 exc_info=True,
             )
-            # save screenshot and html
-            error_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            error_file = os.path.join(config.BROWSER_DATA, "error", error_time)
-
-            await self.playwright_page.screenshot(path=f"{error_file}.png")
-
-            content = await self.playwright_page.content()
-            with open(f"{error_file}.html", "w") as f:
-                f.write(content)
-
-            logger.error(
-                f"[OpenAIClient.chat_completion] Error screenshot: {error_file}.png. html: {error_file}.html"
-            )
+            await screenshot(self.playwright_page)
 
             raise e
         finally:
