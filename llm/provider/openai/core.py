@@ -66,6 +66,11 @@ class OpenAICrawler(AbstractCrawler, AbstractChat):
         )
         await self.openai_client.post_init()
 
+        all_pages = self.browser_context.pages
+        for page in all_pages:
+            if page != self.context_page:
+                await page.close()
+
     # async def cloudflare_bypass(self, page: Page):
     #     stage = await page.query_selector("div#challenge-stage")
     #     check_count = 1
