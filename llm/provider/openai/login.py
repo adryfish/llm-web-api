@@ -3,7 +3,7 @@ import random
 from typing import Optional
 from urllib.parse import urlparse
 
-from playwright.async_api import Page, Response
+from playwright.async_api import Page, Request, Response
 
 from llm.logger import logger
 from llm.provider.openai.cloudflare_bypass import CloudflareBypass
@@ -19,6 +19,7 @@ class OpenAILogin:
         password: Optional[str] = None,
         proxies: Optional[str] = None,
     ):
+        self._host = "https://chatgpt.com"
         self.login_type = login_type
         self.context_page = context_page
         self.email = email
@@ -29,46 +30,67 @@ class OpenAILogin:
         # chatgpt-freeaccount: free account
         # chatgpt-paid": plus user
         self.persona = None
-        self.persona_ready = asyncio.Event()
-
-    async def post_init(self):
-        logger.info("[OpenAILogin.post_init] Start...")
-        await self.setup_listener()
-        logger.info("[OpenAILogin.post_init] End...")
+        self.is_lock = False
 
     async def setup_listener(self):
-        self.context_page.on("response", self.__handle_response)
+        self.context_page.on("request", self.cloudflare_challenge_listener)
+        self.context_page.on("response", self.login_listener)
 
-    async def __handle_response(self, response: Response):
+    async def login_listener(self, response: Response):
         path = urlparse(response.url).path
         if path in [
             "/backend-anon/sentinel/chat-requirements",
             "/backend-api/sentinel/chat-requirements",
         ]:
+            if not response.ok:
+                text = await response.text()
+                logger.info(
+                    f"[OpenAILogin.login_listener] status: {response.status}. text: {text}"
+                )
+                if not self.is_lock:
+                    await self.begin()
+                return
+
             json_body = await response.json()
             self.persona = json_body.get("persona")
-            self.persona_ready.set()
+            if self.persona == "chatgpt-noauth" and self.login_type != "nologin":
+                if not self.is_lock:
+                    await self.begin()
 
-            # if self.persona == "chatgpt-noauth" and self.login_type == "email":
-            #     await self.begin()
+    async def cloudflare_challenge_listener(self, request: Request):
+        url = request.url
+        if url.startswith("https://challenges.cloudflare.com"):
+            logger.info("[OpenAIClient.login_listener] trigger...")
+            if not self.is_lock:
+                await self.begin()
 
     async def begin(self):
         logger.info("[OpenAILogin.begin] OpenAILogin start...")
-        await self.bypass_cloudflare()
+        if self.is_lock:
+            logger.info("[OpenAILogin.begin] processing...")
+            return
+        self.is_lock = True
+        try:
+            await self.context_page.goto(self._host)
+            await self.context_page.wait_for_load_state("load")
 
-        if self.login_type == "email":
-            await self.login_by_email()
-        else:
-            # 2024-05-28
-            # 某些客户端打开首页后会弹出一个登录的dialog
-            dialog = self.context_page.locator('div[role="dialog"]')
-            if dialog and await dialog.is_visible():
-                stay_logged_out = dialog.locator("a", has_text="Stay logged out")
-                if stay_logged_out and await stay_logged_out.is_visible():
-                    await stay_logged_out.click()
-                    await self.context_page.wait_for_load_state("load")
+            await self.bypass_cloudflare()
 
-        logger.info("[OpenAILogin.begin] OpenAILogin finished...")
+            if self.login_type == "email":
+                await self.login_by_email()
+            else:
+                # 2024-05-28
+                # 某些客户端打开首页后会弹出一个登录的dialog
+                dialog = self.context_page.locator('div[role="dialog"]')
+                if dialog and await dialog.is_visible():
+                    stay_logged_out = dialog.locator("a", has_text="Stay logged out")
+                    if stay_logged_out and await stay_logged_out.is_visible():
+                        await stay_logged_out.click()
+                        await self.context_page.wait_for_load_state("load")
+
+            logger.info("[OpenAILogin.begin] OpenAILogin finished...")
+        finally:
+            self.is_lock = False
 
     async def bypass_cloudflare(self):
         challenge_form = await self.context_page.query_selector("#challenge-form")
@@ -91,21 +113,13 @@ class OpenAILogin:
             await self.context_page.wait_for_load_state("load")
 
     async def login_by_email(self):
-        if self.login_type != "email":
-            return
-
-        # 确保访问chat-requirements
-        await asyncio.wait_for(self.persona_ready.wait(), timeout=10)
-
-        if self.persona != "chatgpt-noauth":
-            return
         logger.info("[OpenAILogin.login_by_email] start login")
-        if not self.context_page.url.lower().startswith(
-            "https://auth.openai.com/authorize"
-        ):
-            await self.goto_auth_page()
-
         try:
+            if not self.context_page.url.lower().startswith(
+                "https://auth.openai.com/authorize"
+            ):
+                await self.goto_auth_page()
+
             await asyncio.sleep(random.uniform(0.5, 2.0))
 
             email_input = self.context_page.locator("#email-input")
@@ -127,24 +141,18 @@ class OpenAILogin:
             await asyncio.sleep(random.uniform(0.5, 2.0))
 
             login_password_button = self.context_page.locator("button:text('Continue')")
-            self.persona_ready.clear()
-            await login_password_button.click()
+            await login_password_button.click(timeout=5000)
 
-            await self.context_page.wait_for_load_state()
+            await self.context_page.wait_for_url(lambda url: url.startswith(self._host))
 
-            # 再次等待chat-requirements加载
-            await asyncio.wait_for(self.persona_ready.wait(), timeout=10)
-            if self.persona == "chatgpt-noauth":
-                logger.error(
-                    "[OpenAILogin.login_by_email] login failed. Still chatgpt-noauth user"
-                )
-            else:
-                logger.info("[OpenAILogin.login_by_email] finish login")
+            logger.info("[OpenAILogin.login_by_email] finish login")
         except Exception as e:
             logger.error(
                 f"[OpenAILogin.login_by_email] Error during login process: {e}"
             )
             await screenshot(self.context_page)
+            if not self.context_page.url.startswith(self._host):
+                await self.context_page.goto(self._host)
 
     async def goto_auth_page(self):
         # 2024-05-28
@@ -159,7 +167,8 @@ class OpenAILogin:
             await login_button.click()
         else:
             logger.error("[OpenAILogin.goto_auth_page] Login button not found")
+            raise Exception("Login button not found")
 
-        await self.context_page.wait_for_load_state()
-        # TODO
-        # 可能会再次遇到cloudflare 5s盾
+        await self.context_page.wait_for_url(
+            lambda url: url.startswith("https://auth.openai.com/authorize")
+        )

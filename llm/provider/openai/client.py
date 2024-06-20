@@ -79,9 +79,9 @@ class OpenAIClient:
         await self.setup_websocket()
         await self.setup_listener()
         await self.setup_route()
-        await self.openai_login.post_init()
-        await self.playwright_page.goto(self._host)
-        await self.playwright_page.wait_for_load_state("load")
+        # await self.playwright_page.goto(self._host)
+        # await self.playwright_page.wait_for_load_state("load")
+        await self.openai_login.setup_listener()
         await self.openai_login.begin()
 
     def supported_model(self) -> list[str]:
