@@ -79,10 +79,10 @@ class OpenAIClient:
         await self.setup_websocket()
         await self.setup_listener()
         await self.setup_route()
-        # await self.playwright_page.goto(self._host)
-        # await self.playwright_page.wait_for_load_state("load")
-        await self.openai_login.setup_listener()
+
+        await self.openai_login.post_init()
         await self.openai_login.begin()
+        await self.openai_login.setup_listener()
 
     def supported_model(self) -> list[str]:
         if self.reset_after != None and datetime.now(timezone.utc) > self.reset_after:
@@ -104,6 +104,7 @@ class OpenAIClient:
                 is_websocket=is_websocket,
             )
 
+            self.ready_to_read.set()
             if status != 200:
                 logger.error(
                     f"[OpenAIClient.__handle_route] HTTP request failed. status: {str(status)}. message: {content}",
@@ -112,10 +113,8 @@ class OpenAIClient:
                 logger.info(
                     f"[OpenAIClient.__handle_route] Get websocket response: {content}"
                 )
-                self.ready_to_read.set()
             else:
                 logger.info("[OpenAIClient.__handle_route] Get event-stream Response")
-                self.ready_to_read.set()
 
         async def handle_chunk(chunk):
             self.conversation_response.stream.append(chunk)
@@ -147,6 +146,10 @@ class OpenAIClient:
 
         _body = _json.get("data", {}).get("body")
         real_body = base64.b64decode(_body).decode("utf-8")
+
+        if config.env == "dev":
+            _json["data"]["body"] = real_body
+            logger.debug(f"Frame: {json.dumps(_json, ensure_ascii=False)}")
 
         if real_body.startswith("data: [DONE]"):
             logger.info("[OpenAIClient.__handle_route] Websocket end fetch")
@@ -186,6 +189,7 @@ class OpenAIClient:
             ".gif",
             ".svg",
             ".ico",
+            ".woff2",
             # 统计接口
             "/v1/rgstr",
             "/ces/v1/t",
@@ -418,6 +422,9 @@ class OpenAIClient:
     async def create_completion(
         self, model: str, messages: list[dict[str, any]], stream: Optional[bool] = False
     ) -> dict[str, any]:
+        if not self.openai_login.ready:
+            logger.info("[OpenAIClient.create_completion] in login process")
+            raise Exception("Please try again later")
 
         if self.lock.locked():
             error_message = {

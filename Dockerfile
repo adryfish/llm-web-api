@@ -10,11 +10,13 @@ RUN apt-get update \
     && rm -rf /tmp/google-chrome-stable_current_amd64.deb \
     && rm -rf /root/.cache \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && useradd -m --shell /bin/bash llmuser \
-    && chown -R llmuser:llmuser .
+    && useradd -m --shell /bin/bash llmuser
 
+
+ARG CACHEBUST=1
 USER llmuser
 COPY llm /app/llm
+
 
 ENV PYTHONPATH=/app
 ENV NO_GUI=true

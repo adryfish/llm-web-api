@@ -8,9 +8,6 @@ from llm import config
 from llm.logger import logger
 
 
-async def get_svg_button(page: Page, button_name: str): ...
-
-
 async def is_clickable(locator):
     return await locator.is_visible() and await locator.is_enabled()
 
