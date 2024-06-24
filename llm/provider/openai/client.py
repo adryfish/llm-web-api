@@ -462,11 +462,16 @@ class OpenAIClient:
                 await self.new_conversation()
                 await self.change_model(model)
 
+            content = self.message_prepare(messages)
             prompt_textarea = self.playwright_page.locator("#prompt-textarea")
 
-            content = self.message_prepare(messages)
             await prompt_textarea.click()
-            await prompt_textarea.fill(content)
+            if len(content) <= 50:
+                await prompt_textarea.type(content, delay=0)
+            else:
+                # content_to_type = content[:10]
+                # await prompt_textarea.type(content_to_type, delay=0)
+                await prompt_textarea.fill(content)
 
             await prompt_textarea.press("Enter", timeout=5000)
 

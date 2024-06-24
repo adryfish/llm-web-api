@@ -1,4 +1,4 @@
-import platform
+import random
 import time
 from typing import Optional
 
@@ -34,36 +34,37 @@ class CloudflareBypass:
         for argument in arguments:
             options.set_argument(argument)
 
-        self.driver = ChromiumPage(addr_driver_opts=options)
+        self.driver = ChromiumPage(addr_or_opts=options)
         print(self.driver.user_agent)
 
     def bypass(self, url: str):
         self.driver.get(url)
 
-        check_count = 1
-        while not self.is_passed():
+        check_count = 0
+        while True:
+            print(self.driver.cookies())
+            if self.is_passed():
+                break
+
+            if check_count >= 5:
+                raise Exception("Meet challenge restart")
+
+            logger.info(f"Meet challenge and check it. Count: {check_count}")
             self.try_to_click_challenge()
 
-            if check_count >= 6:
-                if not self.is_passed():
-                    raise Exception("Meet challenge restart")
-
-            logger.info(
-                f"Handle category - meet challenge. Wait 20s to check it again. Count: {check_count}"
-            )
             check_count += 1
-
-            time.sleep(20)
 
         return self.driver.cookies(all_info=True)
 
     def try_to_click_challenge(self):
         try:
-            if self.driver.wait.ele_displayed("xpath://div/iframe", timeout=1.5):
-                time.sleep(1.5)
-                self.driver("xpath://div/iframe").ele(
-                    "Verify you are human", timeout=2.5
-                ).click()
+            if self.driver.wait.ele_displayed("xpath://div/iframe", timeout=15):
+                verify_element = self.driver("xpath://div/iframe").ele(
+                    "Verify you are human", timeout=25
+                )
+                time.sleep(random.uniform(2, 5))
+                verify_element.click()
+                self.driver.wait.load_start(timeout=20)
         except Exception as e:
             # 2025-05-26
             # 有时会出现错误，重试能解决一部分问题
@@ -78,11 +79,9 @@ class CloudflareBypass:
             self.driver.refresh()
 
     def is_passed(self):
-        print(self.driver.cookies())
-        for cookie in self.driver.cookies():
-            if cookie.get("name") == "cf_clearance":
-                return True
-        return False
+        return any(
+            cookie.get("name") == "cf_clearance" for cookie in self.driver.cookies()
+        )
 
     def close(self):
         try:
