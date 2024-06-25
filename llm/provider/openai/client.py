@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import json
-import os
 import random
 import re
 import time
@@ -17,6 +16,39 @@ from llm import config
 from llm.logger import logger
 from llm.provider.openai.login import OpenAILogin
 from llm.provider.openai.playwright_utils import screenshot
+
+
+class AsyncGenerator:
+    def __init__(self, timeout=60):
+        self._queue = asyncio.Queue()
+        self._finished = False
+        self._timeout = timeout
+        self._data = []
+
+    async def write(self, item):
+        self._data.append(item)
+        await self._queue.put(item)
+
+    async def get_all_data(self):
+        return "".join(self._data) + "data: [DONE]"
+
+    def finish(self):
+        self._queue.put_nowait("data: [DONE]")
+        self._finished = True
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._finished and self._queue.empty():
+            raise StopAsyncIteration
+
+        try:
+            item = await asyncio.wait_for(self._queue.get(), timeout=self._timeout)
+            return item
+        except asyncio.TimeoutError:
+            logger.info("[AsyncGenerator] Timeout occurred while waiting for data")
+            raise
 
 
 @dataclass
@@ -55,8 +87,7 @@ class OpenAIClient:
 
         self.messages = None
         self.ready_to_read = asyncio.Event()  # 事件：通知开始读取
-        self.read_complete = asyncio.Event()  # 事件：通知读取完成
-        self.queue = asyncio.Queue()  # SSE和Websocket读取的响应放在这里
+        self.data_generator: AsyncGenerator = None
         self.conversation_response: ConversationResponse = None
         self.forward_request = False
 
@@ -118,25 +149,15 @@ class OpenAIClient:
 
         async def handle_chunk(chunk):
             self.conversation_response.stream.append(chunk)
-            await self.queue.put(chunk)
+            await self.data_generator.write(chunk)
 
         def handle_complete():
             logger.info("[OpenAIClient.__handle_route] Event-stream end fetch")
-            self.read_complete.set()
+            self.data_generator.finish()
 
         await self.playwright_page.expose_function("handleStart", handle_start)
         await self.playwright_page.expose_function("handleChunk", handle_chunk)
         await self.playwright_page.expose_function("handleComplete", handle_complete)
-
-    async def stream_generator(self):
-        while not self.read_complete.is_set():
-            try:
-                frame_data = await asyncio.wait_for(self.queue.get(), timeout=1)
-                yield frame_data
-            except TimeoutError:
-                continue
-
-        yield "data: [DONE]"
 
     async def __process_frame(self, frame):
         _json = json.loads(frame)
@@ -153,9 +174,9 @@ class OpenAIClient:
 
         if real_body.startswith("data: [DONE]"):
             logger.info("[OpenAIClient.__handle_route] Websocket end fetch")
-            self.read_complete.set()
+            self.data_generator.finish()
 
-        await self.queue.put(real_body)
+        await self.data_generator.write(real_body)
 
     async def setup_websocket(self):
         # 监听 WebSocket 事件
@@ -446,8 +467,7 @@ class OpenAIClient:
 
         self.messages = None
         self.ready_to_read.clear()
-        self.read_complete.clear()
-        self.queue = asyncio.Queue()
+        self.data_generator = AsyncGenerator()
         self.conversation_response = None
 
         # 拦截第一个请求，放行重入请求
@@ -497,7 +517,7 @@ class OpenAIClient:
                 nonlocal finish_reason
                 nonlocal final_model
                 nonlocal created
-                async for message in self.stream_completion(self.stream_generator()):
+                async for message in self.stream_completion(self.data_generator):
                     if re.match(
                         r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$", message
                     ):
@@ -575,7 +595,6 @@ class OpenAIClient:
                         yield f"data: {json.dumps(response_chunk)}\n\n"
 
                 logger.info("[OpenAIClient.create_completion] End chat_completion")
-                self.read_complete.set()
 
                 if stream:
                     data = {
