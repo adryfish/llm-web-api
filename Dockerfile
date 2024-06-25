@@ -19,7 +19,6 @@ COPY llm /app/llm
 
 
 ENV PYTHONPATH=/app
-ENV NO_GUI=true
 
 EXPOSE 5000
 

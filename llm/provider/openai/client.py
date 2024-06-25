@@ -147,9 +147,9 @@ class OpenAIClient:
         _body = _json.get("data", {}).get("body")
         real_body = base64.b64decode(_body).decode("utf-8")
 
-        if config.env == "dev":
-            _json["data"]["body"] = real_body
-            logger.debug(f"Frame: {json.dumps(_json, ensure_ascii=False)}")
+        # if config.env == "dev":
+        #     _json["data"]["body"] = real_body
+        #     logger.debug(f"Frame: {json.dumps(_json, ensure_ascii=False)}")
 
         if real_body.startswith("data: [DONE]"):
             logger.info("[OpenAIClient.__handle_route] Websocket end fetch")

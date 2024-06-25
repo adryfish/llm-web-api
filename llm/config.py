@@ -10,7 +10,19 @@ ENABLED_PROVIDER = os.getenv("ENABLED_PROVIDER", "openai").split(",")
 
 PROXY_SERVER = os.getenv("PROXY_SERVER", None)
 
-NO_GUI = os.getenv("NO_GUI", "false").lower() == "true"
+NO_GUI = False if os.getenv("DISPLAY") else True
+# if NO_GUI:
+#     DEFAULT_SCREEN_WIDTH = "1920"
+#     DEFAULT_SCREEN_HEIGHT = "1080"
+# else:
+#     import tkinter
+
+#     screen_root = tkinter.Tk()
+#     screen_root.withdraw()
+#     DEFAULT_SCREEN_WIDTH = screen_root.winfo_screenwidth()
+#     DEFAULT_SCREEN_HEIGHT = screen_root.winfo_screenheight()
+#     screen_root.destroy()
+
 SCREEN_WIDTH = int(os.getenv("SCREEN_WIDTH", "1920"))
 SCREEN_HEIGHT = int(os.getenv("SCREEN_HEIGHT", "1080"))
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
