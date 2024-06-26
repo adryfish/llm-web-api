@@ -5,7 +5,7 @@ import random
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -31,7 +31,7 @@ class AsyncGenerator:
         self._data.append(item)
         await self._queue.put(item)
 
-    async def get_all_data(self):
+    def get_all_data(self):
         return "".join(self._data)
 
     def finish(self):
@@ -98,14 +98,8 @@ class OpenAIClient:
         # gpt-4o, gpt-4, text-davinci-002-render-sha
         self.current_model = None
 
-        # 刚开始先设置默认值
-        if config.OPENAI_LOGIN_TYPE == "nologin":
-            self._supported_model = ["gpt-3.5-turbo"]
-        else:
-            self._supported_model = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
-
         # gpt-4o模型可使用时间
-        self.reset_after = None
+        self.rate_limits = {}
 
     async def post_init(self):
         await self.setup_expose_function()
@@ -118,14 +112,21 @@ class OpenAIClient:
         await self.openai_login.setup_listener()
 
     def supported_model(self) -> list[str]:
-        if self.reset_after != None and datetime.now(timezone.utc) > self.reset_after:
-            if self.account_type == "chatgptfreeplan":
-                self._supported_model = ["gpt-3.5-turbo", "gpt-4o"]
-            else:
-                self._supported_model = ["gpt-3.5-turbo", "gpt-4o", "gpt-4"]
-            self.reset_after = None
+        default_model_dict = {
+            "chatgpt-noauth": ["gpt-3.5-turbo"],
+            "chatgpt-freeaccount": ["gpt-3.5-turbo", "gpt-4o"],
+            "chatgpt-paid": ["gpt-3.5-turbo", "gpt-4o", "gpt-4"],
+        }
 
-        return self._supported_model
+        default_model = default_model_dict.get(self.openai_login.persona)
+
+        self.rate_limits = {
+            model_name: reset_after
+            for model_name, reset_after in self.rate_limits.items()
+            if datetime.now(timezone.utc) < reset_after
+        }
+
+        return [_ for _ in default_model if _ not in self.rate_limits]
 
     async def setup_expose_function(self):
         def on_start(status: int, headers: dict, content: str, is_websocket: bool):
@@ -150,7 +151,6 @@ class OpenAIClient:
                 logger.info("[OpenAIClient.on_start] Get event-stream Response")
 
         async def on_data(data):
-            self.conversation_response.stream.append(data)
             await self.data_generator.write(data)
 
         def on_complete():
@@ -192,7 +192,6 @@ class OpenAIClient:
             self.data_generator.finish()
             self.active = True
 
-        self.conversation_response.stream.append(real_body)
         await self.data_generator.write(real_body)
 
     async def setup_websocket(self):
@@ -284,26 +283,14 @@ class OpenAIClient:
 
             # 获取模型限制情况
             rate_limits = default_account.get("rate_limits", [])
-            rate_limits = [
-                _
-                for _ in rate_limits
-                if _.get("limit_details", {}).get("type", "") == "model_limit"
-            ]
-            if len(rate_limits) == 0:
-                # 没有限制
-                if self.account_type == "chatgptfreeplan":
-                    self._supported_model = ["gpt-3.5-turbo", "gpt-4o"]
-                else:
-                    self._supported_model = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
-            else:
-                self.reset_after = datetime.fromisoformat(
-                    next(_.get("resets_after") for _ in rate_limits)
+            self.rate_limits = {
+                _.get("limit_details", {}).get("model_slug"): datetime.fromisoformat(
+                    _.get("resets_after")
                 )
-                if self.account_type == "chatgptfreeplan":
-                    self._supported_model = ["gpt-3.5-turbo"]
-                else:
-                    # TODO
-                    self._supported_model = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
+                for _ in rate_limits
+                if _.get("limit_details")
+                and _.get("limit_details").get("type", "") == "model_limit"
+            }
 
     async def setup_listener(self):
         if config.OPENAI_LOGIN_TYPE == "email":
@@ -408,15 +395,16 @@ class OpenAIClient:
                 return
 
             logger.info("[OpenAIClient.__handle_route] Write response to page")
-            self.conversation_response.stream.append("data: [DONE]")
 
-            response_body = "".join(self.conversation_response.stream)
+            ## Event-stream
+            response_body = self.data_generator.get_all_data()
             await route.fulfill(
                 status=self.conversation_response.status,
                 headers=self.conversation_response.headers,
                 body=response_body,
             )
 
+            await asyncio.sleep(random.uniform(0.5, 2))
             await self.new_conversation()
         except asyncio.TimeoutError:
             logger.error(
@@ -583,11 +571,13 @@ class OpenAIClient:
 
                     # 有时候模型check不一定触发
                     if (
-                        self.account_type == "chatgptfreeplan"
+                        self.openai_login.persona == "chatgpt-freeaccount"
                         and model != "gpt-3.5-turbo"
                         and final_model == "text-davinci-002-render-sha"
                     ):
-                        self._supported_model = ["gpt-3.5-turbo"]
+                        self.rate_limits[model] = datetime.now(
+                            timezone.utc
+                        ) + timedelta(hours=3)
 
                     if status == "finished_successfully":
                         finish_details_type = (
