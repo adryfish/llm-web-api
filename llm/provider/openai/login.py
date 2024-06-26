@@ -62,6 +62,7 @@ class OpenAILogin:
 
     async def setup_request_listener(self, request: Request):
         url = request.url
+        path = urlparse(request.url).path
         if url.startswith("https://challenges.cloudflare.com"):
             logger.info(
                 "[OpenAIClient.request_listener] cloudflare challenge trigger..."
@@ -69,7 +70,7 @@ class OpenAILogin:
             if self.ready:
                 await self.begin()
         elif (
-            url == "/backend-anon/sentinel/chat-requirements"
+            path == "/backend-anon/sentinel/chat-requirements"
             and self.login_type == "email"
         ):
             logger.info("[OpenAIClient.request_listener] login trigger...")
@@ -103,7 +104,17 @@ class OpenAILogin:
                     stay_logged_out = dialog.locator("a", has_text="Stay logged out")
                     if stay_logged_out and await stay_logged_out.is_visible():
                         await stay_logged_out.click()
-                        await self.context_page.wait_for_load_state("load")
+                        await self.context_page.wait_for_load_state()
+
+            # 2024-06-26
+            # 登录后会有弹出ChatGPT now has memory across chats
+            dialog = self.context_page.locator('div[role="dialog"]')
+            if dialog and await dialog.is_visible():
+                logger.info("[OpenAILogin.begin] meet dialog")
+                continue_button = dialog.locator('button:has-text("Continue")')
+                if continue_button and await continue_button.is_visible():
+                    await continue_button.click()
+                    await self.context_page.wait_for_load_state()
 
             logger.info("[OpenAILogin.begin] OpenAILogin finished...")
             self.error_count = 0

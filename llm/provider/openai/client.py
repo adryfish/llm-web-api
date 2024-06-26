@@ -10,12 +10,12 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from fastapi import Request
-from playwright.async_api import Page, Response
+from playwright.async_api import Page, Response, Route
 
 from llm import config
 from llm.logger import logger
 from llm.provider.openai.login import OpenAILogin
-from llm.provider.openai.playwright_utils import screenshot
+from llm.provider.openai.playwright_utils import get_svg_button, screenshot
 
 
 class AsyncGenerator:
@@ -26,11 +26,13 @@ class AsyncGenerator:
         self._data = []
 
     async def write(self, item):
+        if self._finished:
+            return
         self._data.append(item)
         await self._queue.put(item)
 
     async def get_all_data(self):
-        return "".join(self._data) + "data: [DONE]"
+        return "".join(self._data)
 
     def finish(self):
         self._queue.put_nowait("data: [DONE]")
@@ -83,7 +85,7 @@ class OpenAIClient:
             proxies=self.proxies,
         )
 
-        self.lock = asyncio.Lock()
+        self.active = True
 
         self.messages = None
         self.ready_to_read = asyncio.Event()  # 事件：通知开始读取
@@ -126,7 +128,7 @@ class OpenAIClient:
         return self._supported_model
 
     async def setup_expose_function(self):
-        def handle_start(status: int, headers: dict, content: str, is_websocket: bool):
+        def on_start(status: int, headers: dict, content: str, is_websocket: bool):
             self.conversation_response = ConversationResponse(
                 status=status,
                 headers=headers,
@@ -138,26 +140,39 @@ class OpenAIClient:
             self.ready_to_read.set()
             if status != 200:
                 logger.error(
-                    f"[OpenAIClient.__handle_route] HTTP request failed. status: {str(status)}. message: {content}",
+                    f"[OpenAIClient.on_start] HTTP request failed. status: {str(status)}. message: {content}",
                 )
             elif is_websocket:
                 logger.info(
-                    f"[OpenAIClient.__handle_route] Get websocket response: {content}"
+                    f"[OpenAIClient.on_start] Get websocket response: {content}"
                 )
             else:
-                logger.info("[OpenAIClient.__handle_route] Get event-stream Response")
+                logger.info("[OpenAIClient.on_start] Get event-stream Response")
 
-        async def handle_chunk(chunk):
-            self.conversation_response.stream.append(chunk)
-            await self.data_generator.write(chunk)
+        async def on_data(data):
+            self.conversation_response.stream.append(data)
+            await self.data_generator.write(data)
 
-        def handle_complete():
-            logger.info("[OpenAIClient.__handle_route] Event-stream end fetch")
+        def on_complete():
+            logger.info("[OpenAIClient.on_complete] Event-stream end fetch")
             self.data_generator.finish()
+            self.active = True
 
-        await self.playwright_page.expose_function("handleStart", handle_start)
-        await self.playwright_page.expose_function("handleChunk", handle_chunk)
-        await self.playwright_page.expose_function("handleComplete", handle_complete)
+        async def on_exception(error):
+            logger.info(f"[OpenAIClient.on_exception] exception {error}")
+            self.data_generator.finish()
+            self.active = True
+
+        async def on_abort():
+            logger.info("[OpenAIClient.on_abort] abort")
+            self.data_generator.finish()
+            self.active = True
+
+        await self.playwright_page.expose_function("handleStart", on_start)
+        await self.playwright_page.expose_function("handleData", on_data)
+        await self.playwright_page.expose_function("handleComplete", on_complete)
+        await self.playwright_page.expose_function("handleException", on_exception)
+        await self.playwright_page.expose_function("handleAbort", on_abort)
 
     async def __process_frame(self, frame):
         _json = json.loads(frame)
@@ -175,7 +190,9 @@ class OpenAIClient:
         if real_body.startswith("data: [DONE]"):
             logger.info("[OpenAIClient.__handle_route] Websocket end fetch")
             self.data_generator.finish()
+            self.active = True
 
+        self.conversation_response.stream.append(real_body)
         await self.data_generator.write(real_body)
 
     async def setup_websocket(self):
@@ -197,6 +214,20 @@ class OpenAIClient:
                 "close", lambda: logger.info(f"WebSocket closed: {ws.url}")
             ),
         )
+
+        async def on_stop_conversation(request: Request):
+            path = urlparse(request.url).path
+            if path in [
+                "/backend-api/stop_conversation",
+                "/backend-anon/stop_conversation",
+            ]:
+                logger.info("[OpenAIClient.on_stop_conversation] End conversation")
+                self.data_generator.finish()
+                await asyncio.sleep(random.uniform(0.5, 2))
+                await self.new_conversation()
+                self.active = True
+
+        self.playwright_page.on("request", on_stop_conversation)
 
     async def __handle_request(self, request: Request):
         url_path = urlparse(request.url).path
@@ -281,19 +312,15 @@ class OpenAIClient:
         if config.env == "dev":
             self.playwright_page.on("request", self.__handle_request)
 
-    async def __handle_route(self, route):
+    async def __handle_route(self, route: Route):
         # 重入的请求，是自己使用Fetch API发送的
         if self.forward_request:
             await route.continue_()
             return
 
         request = route.request
+        url = urlparse(request.url).path
         self.forward_request = True
-        url = (
-            "/backend-api/conversation"
-            if self.account_type
-            else "/backend-anon/conversation"
-        )
 
         request_headers = await request.all_headers()
         headers_str = json.dumps(request_headers)
@@ -317,41 +344,45 @@ class OpenAIClient:
             javascript_code = (
                 """
                 (async () => {
-                    const response = await fetch("{url}", {
-                        method: 'POST',
-                        headers: {headers},
-                        body: JSON.stringify({body}),
-                    })
-                    const responseHeaders = Object.fromEntries(response.headers.entries())
+                    try {
+                        const response = await fetch("{url}", {
+                            method: 'POST',
+                            headers: {headers},
+                            body: JSON.stringify({body}),
+                        })
+                        const responseHeaders = Object.fromEntries(response.headers.entries())
 
-                    // 错误处理
-                    if (!response.ok) {
-                        const text = await response.text()
-                        await window.handleStart(response.status, responseHeaders, text, false)
-                        return
-                    } 
+                        // 错误处理
+                        if (!response.ok) {
+                            const text = await response.text()
+                            await window.handleStart(response.status, responseHeaders, text, false)
+                            return
+                        } 
 
-                    // 处理Websocket
-                    const contentType = response.headers.get('Content-Type')
-                    if (contentType.includes('application/json')) {
-                        const data = await response.json()
-                        await window.handleStart(response.status, responseHeaders, data, true)
-                        return
+                        // 处理Websocket
+                        const contentType = response.headers.get('Content-Type')
+                        if (contentType.includes('application/json')) {
+                            const data = await response.json()
+                            await window.handleStart(response.status, responseHeaders, data, true)
+                            return
+                        }
+
+                        await window.handleStart(response.status, responseHeaders, null, false)
+
+                        const reader = response.body.getReader()
+                        const decoder = new TextDecoder()
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break
+
+                            const textChunk = decoder.decode(value, { stream: true })
+                            await window.handleData(textChunk)
+                        }
+                        await window.handleComplete()
+                    } catch (error) {
+                        await window.handleException(err)
                     }
-
-                    await window.handleStart(response.status, responseHeaders, null, false)
-
-                    const reader = response.body.getReader()
-                    const decoder = new TextDecoder()
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break
-
-                        const textChunk = decoder.decode(value, { stream: true })
-                        await window.handleChunk(textChunk)
-                    }
-                    await window.handleComplete()
                 })()
             """.replace(
                     "{url}", url
@@ -385,6 +416,8 @@ class OpenAIClient:
                 headers=self.conversation_response.headers,
                 body=response_body,
             )
+
+            await self.new_conversation()
         except asyncio.TimeoutError:
             logger.error(
                 "[OpenAIClient.__handle_route] Timeout while waiting for read completion"
@@ -394,9 +427,6 @@ class OpenAIClient:
                 headers={"Content-Type": "text/plain"},
                 body="Timeout",
             )
-        finally:
-            # 开启新对话
-            await self.new_conversation()
 
     async def setup_route(self):
         # for nologin
@@ -447,7 +477,7 @@ class OpenAIClient:
             logger.info("[OpenAIClient.create_completion] in login process")
             raise Exception("Please try again later")
 
-        if self.lock.locked():
+        if not self.active:
             error_message = {
                 "status": False,
                 "error": {
@@ -462,7 +492,7 @@ class OpenAIClient:
             # 用一个具体的异常类
             raise Exception("Too many requests. please slow down.")
 
-        await self.lock.acquire()
+        self.active = False
         logger.info("[OpenAIClient.create_completion] Start chat_completion")
 
         self.messages = None
@@ -502,21 +532,16 @@ class OpenAIClient:
                     "[OpenAIClient.create_completion] response stream is None"
                 )
 
-            full_content = ""
-            error = None
-            finish_reason = None
-            request_id = self.generate_completion_id("chatcmpl-")
-            created = int(time.time())
-            content_chunks = []
-            # 对于非订阅用户，model是动态的，可能是gpt3.5,也可能是gpt4-o
-            final_model = model
-
             async def generator():
-                nonlocal full_content
-                nonlocal error
-                nonlocal finish_reason
-                nonlocal final_model
-                nonlocal created
+                full_content = ""
+                error = None
+                finish_reason = None
+                # 对于非订阅用户，model是动态的，可能是gpt3.5,也可能是gpt4-o
+                final_model = model
+                created = int(time.time())
+                request_id = self.generate_completion_id("chatcmpl-")
+                content_chunks = []
+
                 async for message in self.stream_completion(self.data_generator):
                     if re.match(
                         r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$", message
@@ -656,8 +681,6 @@ class OpenAIClient:
             await screenshot(self.playwright_page)
 
             raise e
-        finally:
-            self.lock.release()
 
     def message_prepare(self, messages: list[dict[str, any]]):
         self.messages = messages
@@ -706,35 +729,19 @@ class OpenAIClient:
             logger.info("[OpenAIClient.change_model] Fail to change model")
 
     async def new_conversation(self):
-        if config.OPENAI_LOGIN_TYPE != "email":
+        if self.openai_login.persona == "chatgpt-noauth":
             await self.playwright_page.reload()
             return
         # 先判断是不是已经处于一个新对话
         url = self.playwright_page.url
         if not url.startswith("https://chatgpt.com"):
-            # TODO
-            # 如果这里跳到auth页面，需要处理
             await self.playwright_page.goto(self._host)
             return
 
-        _path = urlparse(url).path
-        if _path == "/":
-            # 已经处于新对话，不用重新创建
-            return
-
         logger.info("[OpenAIClient.new_converstion] Start new_converstion")
-        d_value = "M15.673 3.913a3.121 3.121 0 1 1 4.414 4.414l-5.937 5.937a5 5 0 0 1-2.828 1.415l-2.18.31a1 1 0 0 1-1.132-1.13l.311-2.18A5 5 0 0 1 9.736 9.85zm3 1.414a1.12 1.12 0 0 0-1.586 0l-5.937 5.937a3 3 0 0 0-.849 1.697l-.123.86.86-.122a3 3 0 0 0 1.698-.849l5.937-5.937a1.12 1.12 0 0 0 0-1.586M11 4A1 1 0 0 1 10 5c-.998 0-1.702.008-2.253.06-.54.052-.862.141-1.109.267a3 3 0 0 0-1.311 1.311c-.134.263-.226.611-.276 1.216C5.001 8.471 5 9.264 5 10.4v3.2c0 1.137 0 1.929.051 2.546.05.605.142.953.276 1.216a3 3 0 0 0 1.311 1.311c.263.134.611.226 1.216.276.617.05 1.41.051 2.546.051h3.2c1.137 0 1.929 0 2.546-.051.605-.05.953-.142 1.216-.276a3 3 0 0 0 1.311-1.311c.126-.247.215-.569.266-1.108.053-.552.06-1.256.06-2.255a1 1 0 1 1 2 .002c0 .978-.006 1.78-.069 2.442-.064.673-.192 1.27-.475 1.827a5 5 0 0 1-2.185 2.185c-.592.302-1.232.428-1.961.487C15.6 21 14.727 21 13.643 21h-3.286c-1.084 0-1.958 0-2.666-.058-.728-.06-1.369-.185-1.96-.487a5 5 0 0 1-2.186-2.185c-.302-.592-.428-1.233-.487-1.961C3 15.6 3 14.727 3 13.643v-3.286c0-1.084 0-1.958.058-2.666.06-.729.185-1.369.487-1.961A5 5 0 0 1 5.73 3.545c.556-.284 1.154-.411 1.827-.475C8.22 3.007 9.021 3 10 3A1 1 0 0 1 11 4"
-        buttons = self.playwright_page.locator(f'button:has(svg > path[d="{d_value}"])')
-
-        _count = await buttons.count()
-        for index in range(_count):
-            button = buttons.nth(index)
-            if await button.is_visible():
-                await button.click()
-                logger.info("[OpenAIClient.new_converstion] End new_converstion")
-                break
-        # else:
-        #     self.playwright_page.reload()
+        button = await get_svg_button(self.playwright_page, "new_conversation")
+        await button.click()
+        await self.playwright_page.wait_for_load_state()
 
     # async def remove_conversation(self, conv_id: str):
     #     parent_div = self.playwright_page.locator(f'a[href="/c/{conv_id}"]').locator(
