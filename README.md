@@ -229,13 +229,6 @@ keepalive_timeout 120;
 ### Token统计
 由于推理侧不在llm-web-api，因此token不可统计，将以固定数字返回!!!!!
 
-## 打赏
-免费开源不易，如果项目帮到你了，可以给我打赏哦，您的支持就是我最大的动力！
-<div style="display: flex;justify-content: space-between;width: 100%">
-    <p><img alt="打赏-微信" src="static/images/wechat_pay.jpg" style="width: 200px;height: 100%" ></p>
-    <p><img alt="打赏-支付宝" src="static/images/alipay.jpg"   style="width: 200px;height: 100%" ></p>
-</div>
-
 ## 参考
   - MediaCrawler: https://github.com/NanmiCoder/MediaCrawler
   - Cloudflare突破: https://github.com/sarperavci/CloudflareBypassForScraping
@@ -243,7 +236,7 @@ keepalive_timeout 120;
 
 ## 免责声明
 
-**网页API是不稳定的，建议前往官方 https://openai.com/ 付费使用API，避免封禁的风险。**
+**本项目仅供学习和研究使用，不鼓励用于商业用途。您应当知悉使用本项目可能会违反相关用户协议，并了解相关的风险。我们不对任何因使用本项目而导致的任何损失负责。**
 
 ## Star History
 

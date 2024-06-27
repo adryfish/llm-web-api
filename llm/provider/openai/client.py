@@ -156,17 +156,14 @@ class OpenAIClient:
         def on_complete():
             logger.info("[OpenAIClient.on_complete] Event-stream end fetch")
             self.data_generator.finish()
-            self.active = True
 
         async def on_exception(error):
             logger.info(f"[OpenAIClient.on_exception] exception {error}")
             self.data_generator.finish()
-            self.active = True
 
         async def on_abort():
             logger.info("[OpenAIClient.on_abort] abort")
             self.data_generator.finish()
-            self.active = True
 
         await self.playwright_page.expose_function("handleStart", on_start)
         await self.playwright_page.expose_function("handleData", on_data)
@@ -190,7 +187,6 @@ class OpenAIClient:
         if real_body.startswith("data: [DONE]"):
             logger.info("[OpenAIClient.__handle_route] Websocket end fetch")
             self.data_generator.finish()
-            self.active = True
 
         await self.data_generator.write(real_body)
 
@@ -224,7 +220,6 @@ class OpenAIClient:
                 self.data_generator.finish()
                 await asyncio.sleep(random.uniform(0.5, 2))
                 await self.new_conversation()
-                self.active = True
 
         self.playwright_page.on("request", on_stop_conversation)
 
@@ -530,85 +525,91 @@ class OpenAIClient:
                 request_id = self.generate_completion_id("chatcmpl-")
                 content_chunks = []
 
-                async for message in self.stream_completion(self.data_generator):
-                    if re.match(
-                        r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$", message
-                    ):
-                        continue  # Skip heartbeat detection
+                try:
+                    async for message in self.stream_completion(self.data_generator):
+                        if re.match(
+                            r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$", message
+                        ):
+                            continue  # Skip heartbeat detection
 
-                    parsed = json.loads(message)
-                    if parsed.get("error"):
-                        error = f"Error message from OpenAI: {parsed['error']}"
-                        finish_reason = "stop"
-                        break
-
-                    content = (
-                        parsed.get("message", {})
-                        .get("content", {})
-                        .get("parts", [""])[0]
-                    )
-                    status = parsed.get("message", {}).get("status", "")
-
-                    for msg in messages:
-                        if msg["content"] == content:
-                            content = ""
+                        parsed = json.loads(message)
+                        if parsed.get("error"):
+                            error = f"Error message from OpenAI: {parsed['error']}"
+                            finish_reason = "stop"
                             break
 
-                    if not content:
-                        continue
+                        content = (
+                            parsed.get("message", {})
+                            .get("content", {})
+                            .get("parts", [""])[0]
+                        )
+                        status = parsed.get("message", {}).get("status", "")
 
-                    completion_chunk = content.replace(full_content, "")
-                    full_content = (
-                        content if len(content) > len(full_content) else full_content
-                    )
-                    content_chunks.append(completion_chunk)
+                        for msg in messages:
+                            if msg["content"] == content:
+                                content = ""
+                                break
 
-                    final_model = (
-                        parsed.get("message", {})
-                        .get("metadata", {})
-                        .get("model_slug", final_model)
-                    )
+                        if not content:
+                            continue
 
-                    # 有时候模型check不一定触发
-                    if (
-                        self.openai_login.persona == "chatgpt-freeaccount"
-                        and model != "gpt-3.5-turbo"
-                        and final_model == "text-davinci-002-render-sha"
-                    ):
-                        self.rate_limits[model] = datetime.now(
-                            timezone.utc
-                        ) + timedelta(hours=3)
+                        completion_chunk = content.replace(full_content, "")
+                        full_content = (
+                            content
+                            if len(content) > len(full_content)
+                            else full_content
+                        )
+                        content_chunks.append(completion_chunk)
 
-                    if status == "finished_successfully":
-                        finish_details_type = (
+                        final_model = (
                             parsed.get("message", {})
                             .get("metadata", {})
-                            .get("finish_details", {})
-                            .get("type")
+                            .get("model_slug", final_model)
                         )
 
-                        if finish_details_type == "max_tokens":
-                            finish_reason = "length"
-                        else:
-                            finish_reason = "stop"
-                        break
+                        # 有时候模型check不一定触发
+                        if (
+                            self.openai_login.persona == "chatgpt-freeaccount"
+                            and model != "gpt-3.5-turbo"
+                            and final_model == "text-davinci-002-render-sha"
+                        ):
+                            self.rate_limits[model] = datetime.now(
+                                timezone.utc
+                            ) + timedelta(hours=3)
 
-                    if stream:
-                        response_chunk = {
-                            "id": request_id,
-                            "created": created,
-                            "object": "chat.completion.chunk",
-                            "model": final_model,
-                            "choices": [
-                                {
-                                    "delta": {"content": completion_chunk},
-                                    "index": 0,
-                                    "finish_reason": finish_reason,
-                                }
-                            ],
-                        }
-                        yield f"data: {json.dumps(response_chunk)}\n\n"
+                        if status == "finished_successfully":
+                            finish_details_type = (
+                                parsed.get("message", {})
+                                .get("metadata", {})
+                                .get("finish_details", {})
+                                .get("type")
+                            )
 
+                            if finish_details_type == "max_tokens":
+                                finish_reason = "length"
+                            else:
+                                finish_reason = "stop"
+                            break
+
+                        if stream:
+                            response_chunk = {
+                                "id": request_id,
+                                "created": created,
+                                "object": "chat.completion.chunk",
+                                "model": final_model,
+                                "choices": [
+                                    {
+                                        "delta": {"content": completion_chunk},
+                                        "index": 0,
+                                        "finish_reason": finish_reason,
+                                    }
+                                ],
+                            }
+                            yield f"data: {json.dumps(response_chunk)}\n\n"
+                except Exception as e:
+                    logger.info(f"[OpenAIClient.generator] Error: {str(e)}")
+
+                self.active = True
                 logger.info("[OpenAIClient.create_completion] End chat_completion")
 
                 if stream:
@@ -657,18 +658,20 @@ class OpenAIClient:
 
             async for _ in generator():
                 return _
-        except TimeoutError as e:
-            logger.error("[OpenAIClient.chat_completion] wait timeout")
-            await self.playwright_page.reload()
         except Exception as e:
             logger.error(
-                f"[OpenAIClient.chat_completion] Error happened. message: {str(e)}",
+                f"[OpenAIClient.chat_completion] Error. message: {str(e)}",
                 exc_info=True,
             )
             logger.error(
-                f"[OpenAIClient.chat_completion] prams: model={model}, message={json.dumps(messages, ensure_ascii=False)}, stream={stream}"
+                f"[OpenAIClient.chat_completion] params: model={model}, message={json.dumps(messages, ensure_ascii=False)}, stream={stream}"
             )
             await screenshot(self.playwright_page)
+
+            if isinstance(e, TimeoutError):
+                await self.playwright_page.reload()
+
+            self.active = True
 
             raise e
 
