@@ -131,8 +131,9 @@ python main.py
 请求数据：
 ```json
 {
-    // 如何你是免费或者未登录用户，模型是gpt-3.5-turbo
-    // 如果你是订阅用户,模型名称填写gpt-4o, gpt-4, gpt-3.5-turbo
+    // 如果你是未登录用户，模型名称填写gpt-3.5-turbo
+    // 如果你是免费用户，模型名称填写gpt-3.5-turbo, gpt-4o
+    // 如果你是订阅用户,模型名称填写gpt-3.5-turbo, gpt-4o, gpt-4
     "model": "gpt-4o",
     "messages": [
         {

@@ -57,8 +57,6 @@ class AsyncGenerator:
 class ConversationResponse:
     status: int
     headers: dict[str, str] = field(default_factory=dict)
-    # 流式响应，不断追加
-    stream: list = field(default_factory=list)
     # 完整响应，可能是error，也可能是websocket json
     content: Optional[str] = None
     is_websocket: bool = field(default=False)
@@ -86,6 +84,7 @@ class OpenAIClient:
         )
 
         self.active = True
+        self.last_active_time = datetime.now()
 
         self.messages = None
         self.ready_to_read = asyncio.Event()  # 事件：通知开始读取
@@ -133,7 +132,6 @@ class OpenAIClient:
             self.conversation_response = ConversationResponse(
                 status=status,
                 headers=headers,
-                stream=[],
                 content=content,
                 is_websocket=is_websocket,
             )
@@ -363,7 +361,7 @@ class OpenAIClient:
                         }
                         await window.handleComplete()
                     } catch (error) {
-                        await window.handleException(err)
+                        await window.handleException(error)
                     }
                 })()
             """.replace(
@@ -456,6 +454,20 @@ class OpenAIClient:
     async def create_completion(
         self, model: str, messages: list[dict[str, any]], stream: Optional[bool] = False
     ) -> dict[str, any]:
+        # 如果请求间隔大于30分钟，先检测一下连通性
+        if datetime.now() - self.last_active_time > timedelta(minutes=30):
+            logger.info(
+                "[OpenAIClient.create_completion] Request interval greater than 30 minutes"
+            )
+            self.last_active_time = datetime.now()
+            async with self.playwright_page.expect_response(
+                lambda response: response.url.endswith("/sentinel/chat-requirements"),
+                timeout=5000,
+            ) as response_info:
+                await self.new_conversation()
+            if not (await response_info.value).ok:
+                raise Exception("Please try again later")
+
         if not self.openai_login.ready:
             logger.info("[OpenAIClient.create_completion] in login process")
             raise Exception("Please try again later")
@@ -469,13 +481,14 @@ class OpenAIClient:
                 },
                 "support": "https://github.com/adryfish/llm-web-api",
             }
-            logger.error(error_message)
+            logger.info(error_message)
 
             # TODO
             # 用一个具体的异常类
             raise Exception("Too many requests. please slow down.")
 
         self.active = False
+        self.last_active_time = datetime.now()
         logger.info("[OpenAIClient.create_completion] Start chat_completion")
 
         self.messages = None
@@ -725,7 +738,7 @@ class OpenAIClient:
         if self.openai_login.persona == "chatgpt-noauth":
             await self.playwright_page.reload()
             return
-        # 先判断是不是已经处于一个新对话
+
         url = self.playwright_page.url
         if not url.startswith("https://chatgpt.com"):
             await self.playwright_page.goto(self._host)
@@ -733,7 +746,7 @@ class OpenAIClient:
 
         logger.info("[OpenAIClient.new_converstion] Start new_converstion")
         button = await get_svg_button(self.playwright_page, "new_conversation")
-        await button.click()
+        await button.click(timeout=5000)
         await self.playwright_page.wait_for_load_state()
 
     # async def remove_conversation(self, conv_id: str):

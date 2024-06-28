@@ -48,9 +48,8 @@ class OpenAILogin:
             "/backend-api/sentinel/chat-requirements",
         ]:
             if not response.ok:
-                text = await response.text()
                 logger.info(
-                    f"[OpenAILogin.response_listener] status: {response.status}. text: {text}"
+                    f"[OpenAILogin.response_listener] status: {response.status}."
                 )
                 if self.ready:
                     await self.begin()
