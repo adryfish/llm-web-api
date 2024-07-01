@@ -4,37 +4,36 @@
 ![](https://img.shields.io/github/stars/adryfish/llm-web-api.svg)
 ![](https://img.shields.io/github/forks/adryfish/llm-web-api.svg)
 
-使用`Playwright`将网页版ChatGPT转换成`FastAPI`接口
+[中文文档](README-ZH.md)
 
-## 功能列表
- - Cloudflare 5s盾破解
- - 免登录使用(支持gpt3.5模型)
- - 邮箱帐号自动登录(支持gpt3.5, gpt-4o, gpt-4模型)
- - 登录失效后自动重新登录
- - 高速流式输出
- - 模型切换
- - 多轮对话
- - 动态显示支持模型
- - 监听event-stream,websocket两种响应
+ChatGPT Web Page to API interface. 
 
-与ChatGPT接口完全兼容。
+## Features
+  - Bypass `Cloudflare` challenge
+  - Use without login (supports gpt3.5 model)
+  - Auto-login with email account (supports gpt3.5, gpt-4o, gpt-4 models)
+  - Auto re-login after session expiration
+  - High-speed streaming output
+  - Model switching
+  - Multi-turn conversations
+  - Dynamically display supported models
+  - Support for both event-stream and websocket responses
 
-## 原理
-利用[DrissionPage](https://github.com/g1879/DrissionPage)模拟浏览器登录破解`Cloudflare` 5s盾，成功后将`cookie`注入[Playwright](https://playwright.dev/)控制的浏览器中。模拟用户操作并监听响应结果。
-通过使用此方式，免去了复现核心加密JS代码，逆向难度大大降低。
+Compatible with the `ChatGPT` API.
 
-## 使用方法
 
-### 使用Docker
-#### 使用Docker运行
+## Usage
+
+### Docker
+#### Run with Docker
 
 ```shell
 docker run --name llm-web-api --rm -it -p 5000:5000 adryfish/llm-web-api
 ```
 
-#### 使用Docker compose
+#### Docker compose
 
-详细配置见下方环境变量
+See detailed configuration below for environment variables.
 
 ```yml
 version: '3.8'
@@ -45,95 +44,94 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # 浏览器数据，如何要保留浏览器登录信息，需要配置
+      # Browser data. Configure if you want to retain browser login information.
       - ./browser_data:/app/browser_data
     environment:
-      # PROXY_SERVER: ""          # 代理服务器地址
-      # USER_AGENT: ""            # 浏览器User-Agent
-      # OPENAI_LOGIN_TYPE: ""     # 登录类型,nologin or email
-      # OPENAI_LOGIN_EMAIL: ""    # 登录邮箱
-      # OPENAI_LOGIN_PASSWORD: "" # 登录密码
+      # PROXY_SERVER: ""          # Proxy server address
+      # USER_AGENT: ""            # Browser User-Agent
+      # OPENAI_LOGIN_TYPE: ""     # Login Type,nologin or email
+      # OPENAI_LOGIN_EMAIL: ""    # Login email
+      # OPENAI_LOGIN_PASSWORD: "" # Login password
     restart: unless-stopped
 ```
 
-### 本地安装
-#### 创建并激活 python 虚拟环境
+### Local
+#### Create and activate python venv
 
 ```shell   
-# 进入项目根目录
 cd llm-web-api
 
-# 创建虚拟环境
-# 注意python 版本需要3.10以上
+# create python venv
+# Note: Python version must be above 3.10
 python -m venv venv
 
-# macos & linux 激活虚拟环境
+# macos & linux activate virtual environment
 source venv/bin/activate
 
-# windows 激活虚拟环境
+# windows activate virtual environment
 venv\Scripts\activate
 ```
 
-#### 安装依赖库
+#### Install dependencies
 
 ```shell
 pip3 install -r requirements.txt
 ```
 
-#### 安装 playwright浏览器驱动
+#### Install Chrome web browser
 
 ```shell
-# 暂时只支持Chrome浏览器
+# Currently only supports Chrome browser
 playwright install chrome
 ```
 
-#### 安装xvfb(可选)
+#### Install xvfb (Optional)
 ```shell
-# 对于无图形界面的Linux，需要安装xvfb
+# For no GUI Linux, install xvfb
 sudo apt-get install xvfb
 ```
 
-#### 设置环境变量
+#### Set environment variables
 
 ```shell
-# 根据需求设置环境变量
+# Set environment variables as needed
 cp .env.example .env
 ```
 
-#### 启动FastAPI服务器
+#### Start FastAPI server
+
 ```shell
 python main.py
 ```
 
-### 环境变量
+### Environment
 
-| 变量名             | 描述                                       | 默认值  |
-|---------------------|--------------------------------------------|--------|
-| PROXY_SERVER        | 代理服务器地址                             | None     |
-| HEADLESS            | 是否使用无头模式(不推荐开启)               | False   |
-| USER_AGENT          | 浏览器的 User-Agent                        | 浏览器默认     |
-| BROWSER_DATA            | 浏览器数据存放目录               | 当前目录/browser_data   |
-| OPENAI_LOGIN_TYPE   | ChatGPT 的登录类型, nologin 或者 email    | nologin|
-| OPENAI_LOGIN_EMAIL  | 对于 email 登录方式，提供 email 帐号       | None     |
-| OPENAI_LOGIN_PASSWORD | 对于 email 登录方式，提供密码            | None     |
+| variable              | description                              | default  |
+|-----------------------|------------------------------------------|--------|
+| PROXY_SERVER          | Proxy server address	                   | None     |
+| USER_AGENT            | User-Agent                               | Browser default     |
+| BROWSER_DATA          | Browser data storage directory	       | ./browser_data   |
+| OPENAI_LOGIN_TYPE     | ChatGPT login type, nologin or email     | nologin|
+| OPENAI_LOGIN_EMAIL    | Email account for email login type	   | None     |
+| OPENAI_LOGIN_PASSWORD | Password for email login type	           | None     |
 
 
-## 接口列表
+## API
 
-目前支持与openai兼容的 `/v1/chat/completions` 接口，可自行使用与openai或其他兼容的客户端接入接口
+Currently supports the OpenAI-compatible /v1/chat/completions API, which can be accessed using OpenAI or other compatible clients.
 
-### 对话补全
+### Chat completion
 
-对话补全接口，与openai的 [chat-completions-api](https://platform.openai.com/docs/guides/text-generation/chat-completions-api) 兼容。
+Chat completion API，compatible with Openai [chat-completions-api](https://platform.openai.com/docs/guides/text-generation/chat-completions-api)。
 
 **POST /v1/chat/completions**
 
-请求数据：
+Request：
 ```json
 {
-    // 如果你是未登录用户，模型名称填写gpt-3.5-turbo
-    // 如果你是免费用户，模型名称填写gpt-3.5-turbo, gpt-4o
-    // 如果你是订阅用户,模型名称填写gpt-3.5-turbo, gpt-4o, gpt-4
+    // If you are no-login user, use gpt-3.5-turbo for the model name.
+    // If you are a free user, use gpt-3.5-turbo or gpt-4o for the model name.
+    // If you are a subscribed user, use gpt-3.5-turbo, gpt-4o, or gpt-4 for the model name.
     "model": "gpt-4o",
     "messages": [
         {
@@ -141,12 +139,12 @@ python main.py
             "content": "Hello"
         }
     ],
-    // 如果使用SSE流请设置为true，默认false
+    // If using SSE stream, set to true, default is false
     "stream": false
 }
 ```
 
-响应数据：
+Response：
 ```json
 {
     "id": "chatcmpl-ZklDQbSRpTI5gzb8zzctb6fB3YDW",
@@ -171,8 +169,8 @@ python main.py
 }
 ```
 
-## 用例
-### 使用Python OpenAI官方库
+## Examples
+### Using OpenAI Official Library
 #### Python
 ```python
 import openai
@@ -208,36 +206,44 @@ const chatCompletion = await openai.chat.completions.create({
 console.log(chatCompletion.choices[0].message.content);
 ```
 
-## 注意事项
+## Notes
 
-### Nginx反代优化
+### Nginx config
 
-如果您正在使用Nginx反向代理llm-web-api，请添加以下配置项优化流的输出效果，优化体验感。
+If you are using Nginx as a reverse proxy for llm-web-api, add the following configuration to optimize the streaming output and improve the user experience.
 
 ```nginx
-# 关闭代理缓冲。当设置为off时，Nginx会立即将客户端请求发送到后端服务器，并立即将从后端服务器接收到的响应发送回客户端。
+# Disable proxy buffering. When set to off, Nginx sends client requests to the backend server immediately and sends responses back to the client immediately.
 proxy_buffering off;
-# 启用分块传输编码。分块传输编码允许服务器为动态生成的内容分块发送数据，而不需要预先知道内容的大小。
+
+# Enable chunked transfer encoding. This allows the server to send data in chunks for dynamically generated content without knowing the size of the content in advance.
 chunked_transfer_encoding on;
-# 开启TCP_NOPUSH，这告诉Nginx在数据包发送到客户端之前，尽可能地发送数据。这通常在sendfile使用时配合使用，可以提高网络效率。
+
+# Enable TCP_NOPUSH, which tells Nginx to send data as efficiently as possible before sending data packets to the client. This is often used with sendfile to improve network efficiency.
 tcp_nopush on;
-# 开启TCP_NODELAY，这告诉Nginx不延迟发送数据，立即发送小数据包。在某些情况下，这可以减少网络的延迟。
+
+# Enable TCP_NODELAY, which tells Nginx not to delay sending data and to send small data packets immediately. In some cases, this can reduce network latency.
 tcp_nodelay on;
-# 设置保持连接的超时时间，这里设置为120秒。如果在这段时间内，客户端和服务器之间没有进一步的通信，连接将被关闭。
+
+# Set the keepalive timeout, here set to 120 seconds. If there is no further communication between the client and the server within this period, the connection will be closed.
 keepalive_timeout 120;
 ```
 
-### Token统计
-由于推理侧不在llm-web-api，因此token不可统计，将以固定数字返回!!!!!
+### Token
+Since inference is not performed on the llm-web-api side, token statistics will be returned as fixed number!!!!!
 
-## 参考
+## Buy Me a Coffee
+If this project is helpful to you, why not buy the author a cup of coffee 
+![wechat.jpg](static/image/wechat.jpg)
+
+## Disclaimer
+
+**This project is for learning and research purposes only and is not intended for commercial use. You should be aware that using this project may violate related user agreements and understand the associated risks. We are not responsible for any losses resulting from the use of this project.**
+
+## Reference
   - MediaCrawler: https://github.com/NanmiCoder/MediaCrawler
-  - Cloudflare突破: https://github.com/sarperavci/CloudflareBypassForScraping
-  - ChatGPT逆向接口服务: https://github.com/PawanOsman/ChatGPT
-
-## 免责声明
-
-**本项目仅供学习和研究使用，不鼓励用于商业用途。您应当知悉使用本项目可能会违反相关用户协议，并了解相关的风险。我们不对任何因使用本项目而导致的任何损失负责。**
+  - Bypass Cloudflare: https://github.com/sarperavci/CloudflareBypassForScraping
+  - ChatGPT Reverse Engine: https://github.com/PawanOsman/ChatGPT
 
 ## Star History
 
