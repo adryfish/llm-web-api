@@ -10,6 +10,7 @@ ChatGPT Web Page to API interface.
 
 ## Features
   - Bypass `Cloudflare` challenge
+  - Solve Funcaptcha by `Capsolver`
   - Use without login (supports gpt3.5 model)
   - Auto-login with email account (supports gpt3.5, gpt-4o, gpt-4 models)
   - Auto re-login after session expiration
@@ -110,10 +111,12 @@ python main.py
 |-----------------------|------------------------------------------|--------|
 | PROXY_SERVER          | Proxy server address	                   | None     |
 | USER_AGENT            | User-Agent                               | Browser default     |
-| BROWSER_DATA          | Browser data storage directory	       | ./browser_data   |
+| BROWSER_DATA          | Browser data storage directory	         | ./browser_data   |
 | OPENAI_LOGIN_TYPE     | ChatGPT login type, nologin or email     | nologin|
-| OPENAI_LOGIN_EMAIL    | Email account for email login type	   | None     |
+| OPENAI_LOGIN_EMAIL    | Email account for email login type	     | None     |
 | OPENAI_LOGIN_PASSWORD | Password for email login type	           | None     |
+| FUNCAPTCHA_PROVIDER   | Provider name for funcaptcha             | capsolver     |
+| CAPSOLVER_API_KEY     | API Key for Capsolver                    | None     |
 
 
 ## API

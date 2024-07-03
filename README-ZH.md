@@ -7,7 +7,8 @@
 使用`Playwright`将网页版ChatGPT转换成`FastAPI`接口
 
 ## 功能列表
- - Cloudflare 5s盾破解
+ - `Cloudflare` 5s盾破解
+ - 使用`CapSolver`解决Funcaptcha
  - 免登录使用(支持gpt3.5模型)
  - 邮箱帐号自动登录(支持gpt3.5, gpt-4o, gpt-4模型)
  - 登录失效后自动重新登录
@@ -107,15 +108,17 @@ python main.py
 
 ### 环境变量
 
-| 变量名             | 描述                                       | 默认值  |
-|---------------------|--------------------------------------------|--------|
-| PROXY_SERVER        | 代理服务器地址                             | None     |
-| HEADLESS            | 是否使用无头模式(不推荐开启)               | False   |
-| USER_AGENT          | 浏览器的 User-Agent                        | 浏览器默认     |
-| BROWSER_DATA            | 浏览器数据存放目录               | 当前目录/browser_data   |
-| OPENAI_LOGIN_TYPE   | ChatGPT 的登录类型, nologin 或者 email    | nologin|
-| OPENAI_LOGIN_EMAIL  | 对于 email 登录方式，提供 email 帐号       | None     |
-| OPENAI_LOGIN_PASSWORD | 对于 email 登录方式，提供密码            | None     |
+| 变量名                 | 描述                                    | 默认值  |
+|-----------------------|----------------------------------------|--------|
+| PROXY_SERVER          | 代理服务器地址                            | None     |
+| HEADLESS              | 是否使用无头模式(不推荐开启)                | False   |
+| USER_AGENT            | 浏览器的 User-Agent                      | 浏览器默认     |
+| BROWSER_DATA          | 浏览器数据存放目录                         | 当前目录/browser_data   |
+| OPENAI_LOGIN_TYPE     | ChatGPT 的登录类型, nologin 或者 email    | nologin|
+| OPENAI_LOGIN_EMAIL    | 对于 email 登录方式，提供 email 帐号        | None     |
+| OPENAI_LOGIN_PASSWORD | 对于 email 登录方式，提供密码               | None     |
+| FUNCAPTCHA_PROVIDER   | Funcaptcha供应商名称                      | capsolver     |
+| CAPSOLVER_API_KEY     | CapSolver的API Key                      | None     |
 
 
 ## 接口列表

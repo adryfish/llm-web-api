@@ -1,3 +1,13 @@
+## v1.2.0
+
+`2024-07-03`
+
+## Feature
+  - 使用`Capsolver`解决Funcaptcha
+
+## Enhancement
+  - 登录跳转到 https://chatgpt.com/auth/login支持
+
 ## v1.1.16
 
 `2024-07-01`

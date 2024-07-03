@@ -33,7 +33,7 @@ SAVE_LOGIN_STATE = os.getenv("SAVE_LOGIN_STATE", True)
 def get_default_browser_path():
     os_name = platform.system().lower()
     if "windows" in os_name:
-        return r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+        return "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
     elif "darwin" in os_name:
         return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     else:
@@ -56,3 +56,5 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO" if env != "dev" else "DEBUG").upper()
 OPENAI_LOGIN_TYPE = os.getenv("OPENAI_LOGIN_TYPE", "nologin")
 OPENAI_LOGIN_EMAIL = os.getenv("OPENAI_LOGIN_EMAIL", "")
 OPENAI_LOGIN_PASSWORD = os.getenv("OPENAI_LOGIN_PASSWORD", "")
+
+FUNCAPTCHA_PROVIDER = os.getenv("FUNCAPTCHA_PROVIDER", "capsolver")

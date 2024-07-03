@@ -7,6 +7,7 @@ from playwright.async_api import Page, Request, Response
 
 from llm.logger import logger
 from llm.provider.openai.cloudflare_bypass import CloudflareBypass
+from llm.provider.openai.funcaptcha_bypass import FunCaptchaBypass
 from llm.provider.openai.playwright_utils import screenshot
 
 
@@ -22,6 +23,7 @@ class OpenAILogin:
         self._host = "https://chatgpt.com"
         self.login_type = login_type
         self.context_page = context_page
+        self.funcaptcha_bypass = FunCaptchaBypass(context_page=context_page)
         self.email = email
         self.password = password
         self.proxies = proxies
@@ -36,6 +38,7 @@ class OpenAILogin:
         self.error_count = 0
 
     async def post_init(self):
+        await self.funcaptcha_bypass.post_init()
         self.context_page.on("response", self.setup_response_listener)
 
     async def setup_listener(self):
@@ -155,11 +158,16 @@ class OpenAILogin:
             await self.context_page.reload()
 
     async def login_by_email(self):
-        if self.persona is None:
-            await asyncio.wait_for(self.persona_ready.wait(), timeout=10)
+        # 2024-07-03
+        # https://chatgpt.com 有时会重定向 https://chatgpt.com/auth/login
+        parsed_url = urlparse(self.context_page.url)
+        clean_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        if clean_url == "https://chatgpt.com/":
+            if self.persona is None:
+                await asyncio.wait_for(self.persona_ready.wait(), timeout=10)
 
-        if self.persona != "chatgpt-noauth":
-            return
+            if self.persona != "chatgpt-noauth":
+                return
 
         logger.info("[OpenAILogin.login_by_email] start login")
         if not self.context_page.url.lower().startswith(
@@ -169,11 +177,11 @@ class OpenAILogin:
 
         await self.context_page.wait_for_load_state()
         await self.context_page.wait_for_selector("#email-input", timeout=30000)
-        await asyncio.sleep(random.uniform(0.5, 2.0))
+        await asyncio.sleep(random.uniform(2, 5))
 
         email_input = self.context_page.locator("#email-input")
         await email_input.focus()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.5)
         await email_input.fill(self.email)
 
         continue_button = self.context_page.locator(".continue-btn")
@@ -181,18 +189,28 @@ class OpenAILogin:
 
         await self.context_page.wait_for_load_state()
         await self.context_page.wait_for_selector("#password", timeout=30000)
-        await asyncio.sleep(random.uniform(0.5, 2.0))
+        await asyncio.sleep(random.uniform(2, 5))
 
         password_input = self.context_page.locator("#password")
         await password_input.focus()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.5)
         await password_input.fill(self.password)
 
-        await asyncio.sleep(random.uniform(0.5, 2.0))
+        await asyncio.sleep(random.uniform(2, 5))
 
         login_password_button = self.context_page.locator("button:text('Continue')")
         self.persona_ready.clear()
+
         await login_password_button.click(timeout=5000)
+        await self.context_page.wait_for_load_state()
+
+        await asyncio.sleep(2)
+        # 是否有funcaptcha
+        if self.funcaptcha_bypass.trigger:
+            # TODO
+            await asyncio.wait_for(
+                self.funcaptcha_bypass.ready_flag.wait(), timeout=12000
+            )
 
         await self.context_page.wait_for_url(lambda url: url.startswith(self._host))
         await asyncio.wait_for(self.persona_ready.wait(), timeout=10)
