@@ -6,5 +6,7 @@ dacite
 aiofiles
 playwright
 DrissionPage
-xvfbwrapper==0.2.9; platform_system != "Windows"
+pyvirtualdisplay; platform_system == "Linux"
 httpx
+python-xlib
+pyautogui

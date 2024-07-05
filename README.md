@@ -107,6 +107,8 @@ python main.py
 
 ### Environment
 
+All environment variables are optional. Regarding the `CAPSOLVER_API_KEY`, you do not need to fill it out unless you actually encounter a `FunCaptcha`.
+
 | variable              | description                              | default  |
 |-----------------------|------------------------------------------|--------|
 | PROXY_SERVER          | Proxy server address	                   | None     |

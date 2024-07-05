@@ -1,3 +1,4 @@
+import os
 import platform
 from contextlib import asynccontextmanager
 
@@ -29,27 +30,31 @@ async def lifespan(app: FastAPI):
         pass
 
 
-XVFB_DISPLAY = None
+xvfb_display = None
 
 
 def start_xvfb_display():
-    global XVFB_DISPLAY
-    if XVFB_DISPLAY is None:
-        from xvfbwrapper import Xvfb
+    from pyvirtualdisplay import Display
 
-        XVFB_DISPLAY = Xvfb(width=config.SCREEN_WIDTH, height=config.SCREEN_HEIGHT)
-        XVFB_DISPLAY.start()
+    xvfb_display = Display(
+        backend="xvfb",
+        visible=True,
+        size=(config.SCREEN_WIDTH, config.SCREEN_HEIGHT),
+        use_xauth=True,
+    )
+    xvfb_display.start()
+    print(f"DISPLAY={os.getenv('DISPLAY')}")
 
 
 def api():
     from llm.shared_cmd_options import cmd_opts
 
-    app = FastAPI(lifespan=lifespan)
-    api = create_api(app)
-
     if config.NO_GUI and platform.system() == "Linux":
         logger.info(f"Start xvfb service")
         start_xvfb_display()
+
+    app = FastAPI(lifespan=lifespan)
+    api = create_api(app)
 
     api.launch(
         server_name="0.0.0.0" if cmd_opts.listen else "127.0.0.1",

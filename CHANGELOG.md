@@ -1,12 +1,15 @@
-## v1.2.0
+## v1.2.2
 
-`2024-07-03`
+`2024-07-05`
 
 ## Feature
-  - 使用`Capsolver`解决Funcaptcha
+  - 使用`Capsolver`解决FunCaptcha
+  - 使用`pyvirtualdisplay`替换`xvfbwrapper`
 
 ## Enhancement
   - 登录跳转到 https://chatgpt.com/auth/login支持
+  - 2024-07-05 cloudflare验证升级应对
+
 
 ## v1.1.16
 
