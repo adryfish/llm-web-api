@@ -1,3 +1,8 @@
+## v1.2.3
+
+## BugFix
+  - 免费用户切换模型失败
+
 ## v1.2.2
 
 `2024-07-05`
@@ -5,6 +10,7 @@
 ## Feature
   - 使用`Capsolver`解决FunCaptcha
   - 使用`pyvirtualdisplay`替换`xvfbwrapper`
+  - 使用`pyautogui`完成点击事件
 
 ## Enhancement
   - 登录跳转到 https://chatgpt.com/auth/login支持

@@ -93,7 +93,7 @@ class OpenAIClient:
         self.forward_request = False
 
         # 登录账户类型，如果是免费用户，没有切换模型的必要
-        self.account_type = None
+        self.persona = None
         # gpt-4o, gpt-4, text-davinci-002-render-sha
         self.current_model = None
 
@@ -243,36 +243,39 @@ class OpenAIClient:
         if not any(url_path.endswith(suffix) for suffix in ignore_suffixes):
             logger.debug(f"{request.method} {request.url}")
 
+    async def __persona_listener(self, response: Response):
+        path = urlparse(response.url).path
+        if path in [
+            "/backend-anon/sentinel/chat-requirements",
+            "/backend-api/sentinel/chat-requirements",
+        ]:
+            # 不要用 await response.finish()等待response完成，有时会死循环,报错就等下一次
+            if not response.ok:
+                return
+
+            json_body = await response.json()
+            self.persona = json_body.get("persona")
+
+            logger.info(f"[OpenAIClient] Your acount is {self.persona}")
+            if self.persona == "chatgpt-paid" and self.current_model is None:
+                model_locator = self.playwright_page.locator(
+                    'div[type="button"][aria-haspopup="menu"]', has_text="ChatGPT"
+                )
+                if model_locator and await model_locator.is_visible():
+                    _text_content = await model_locator.text_content()
+                    self.current_model = {
+                        "ChatGPT 4o": "gpt-4o",
+                        "ChatGPT 4": "gpt-4",
+                        "ChatGPT 3.5": "text-davinci-002-render-sha",
+                    }.get(_text_content, "gpt-4o")
+
     async def __handle_response(self, response: Response):
         path = urlparse(response.url).path
         if path.startswith("/backend-api/accounts/check"):
-            # 获取模型限制情况
             # 获取账户类型 chatgptfreeplan, chatgptplusplan
-
             # 不要用 await response.finish()等待response完成，有时会死循环,报错就等下一次
             _body = await response.json()
-
             default_account = _body.get("accounts").get("default")
-
-            # 获取账户类型 chatgptfreeplan, chatgptplusplan
-            if self.account_type == None:
-                entitlement = default_account.get("entitlement")
-                self.account_type = entitlement.get("subscription_plan")
-                logger.info(
-                    f"[OpenAIClient.__handle_response] Your acount is {self.account_type}"
-                )
-
-                if self.account_type != "chatgptfreeplan":
-                    model_locator = self.playwright_page.locator(
-                        'div[type="button"][aria-haspopup="menu"]', has_text="ChatGPT"
-                    )
-                    if model_locator and await model_locator.is_visible():
-                        _text_content = await model_locator.text_content()
-                        self.current_model = {
-                            "ChatGPT 4o": "gpt-4o",
-                            "ChatGPT 4": "gpt-4",
-                            "ChatGPT 3.5": "text-davinci-002-render-sha",
-                        }.get(_text_content, "gpt-4o")
 
             # 获取模型限制情况
             rate_limits = default_account.get("rate_limits", [])
@@ -286,6 +289,8 @@ class OpenAIClient:
             }
 
     async def setup_listener(self):
+        self.playwright_page.on("response", self.__persona_listener)
+
         if config.OPENAI_LOGIN_TYPE == "email":
             self.playwright_page.on("response", self.__handle_response)
 
@@ -693,7 +698,13 @@ class OpenAIClient:
         return messages[-1].get("content")
 
     async def change_model(self, model_name: str):
-        if self.account_type == "chatgptfreeplan":
+        if self.persona == None:
+            logger.error(
+                "[OpenAIClient.change_model] Cannot switch model. persona is None"
+            )
+            return
+
+        if self.persona != "chatgpt-paid":
             return
 
         model_map = {
