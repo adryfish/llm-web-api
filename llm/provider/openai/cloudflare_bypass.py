@@ -46,6 +46,7 @@ class CloudflareBypass:
         print(self.driver.user_agent)
 
     def bypass(self, url: str):
+        self.driver.set.cookies.clear()
         self.driver.get(url)
 
         check_count = 0
