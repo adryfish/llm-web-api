@@ -60,9 +60,10 @@ class FunCaptchaBypass:
 
     async def bypass(self):
         # click Verify
-        challenge_frame = self.context_page.frame(
-            url=lambda url: url.startswith("https://tcr9i.openai.com")
-        )
+        def filter(url: str):
+            return url.startswith("https://tcr9i.openai.com")
+
+        challenge_frame = self.context_page.frame(filter)
         iframe = challenge_frame.child_frames[0]
 
         verify_button = iframe.locator("button:text('Begin puzzle')")

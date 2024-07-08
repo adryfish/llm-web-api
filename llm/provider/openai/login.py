@@ -212,7 +212,10 @@ class OpenAILogin:
                 self.funcaptcha_bypass.ready_flag.wait(), timeout=12000
             )
 
-        await self.context_page.wait_for_url(lambda url: url.startswith(self._host))
+        def filter(url: str):
+            return url.startswith(self._host)
+
+        await self.context_page.wait_for_url(filter)
         await asyncio.wait_for(self.persona_ready.wait(), timeout=10)
 
         if self.persona == "chatgpt-noauth":
@@ -237,6 +240,7 @@ class OpenAILogin:
         await asyncio.sleep(random.uniform(2, 5))
         await login_button.click(timeout=5000)
 
-        await self.context_page.wait_for_url(
-            lambda url: url.startswith("https://auth.openai.com/authorize")
-        )
+        def filter(url: str):
+            return url.startswith("https://auth.openai.com/authorize")
+
+        await self.context_page.wait_for_url(filter)

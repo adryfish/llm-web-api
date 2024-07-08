@@ -10,7 +10,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from fastapi import Request
-from playwright.async_api import Page, Response, Route
+from playwright.async_api import Page, Response, Route, WebSocket
 
 from llm import config
 from llm.logger import logger
@@ -190,23 +190,20 @@ class OpenAIClient:
 
     async def setup_websocket(self):
         # 监听 WebSocket 事件
-        self.playwright_page.on(
-            "websocket", lambda ws: logger.info(f"WebSocket connected: {ws.url}")
-        )
-        self.playwright_page.on(
-            "websocket",
-            lambda ws: ws.on("framereceived", self.__process_frame),
-        )
-        # self.playwright_page.on(
-        #     "websocket",
-        #     lambda ws: ws.on("framesent", lambda frame: print(f"Frame sent: {frame}")),
-        # )
-        self.playwright_page.on(
-            "websocket",
-            lambda ws: ws.on(
-                "close", lambda: logger.info(f"WebSocket closed: {ws.url}")
-            ),
-        )
+        async def on_websocket(ws: WebSocket):
+            logger.info(f"WebSocket connected: {ws.url}")
+
+            async def on_websocket_close():
+                logger.info(f"WebSocket closed: {ws.url}")
+
+            ws.on("framereceived", self.__process_frame)
+            # 如果需要启用 framesent 事件，可以定义并启用以下代码
+            # async def on_framesent(frame):
+            #     print(f"Frame sent: {frame}")
+            # ws.on("framesent", on_framesent)
+            ws.on("close", on_websocket_close)
+
+        self.playwright_page.on("websocket", on_websocket)
 
         async def on_stop_conversation(request: Request):
             path = urlparse(request.url).path
@@ -465,8 +462,12 @@ class OpenAIClient:
                 "[OpenAIClient.create_completion] Request interval greater than 30 minutes"
             )
             self.last_active_time = datetime.now()
+
+            def filter(response: Response):
+                return response.url.endswith("/sentinel/chat-requirements")
+
             async with self.playwright_page.expect_response(
-                lambda response: response.url.endswith("/sentinel/chat-requirements"),
+                filter,
                 timeout=5000,
             ) as response_info:
                 await self.new_conversation()
