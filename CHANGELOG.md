@@ -1,3 +1,13 @@
+## v1.2.6
+
+`2024-07-10`
+
+## Feature
+  - Docker使用`Nuitka`打包加速运行
+
+## Enhancement
+  - 2024-07-09 Cloudflare验证升级应对
+
 ## v1.2.3
 
 ## BugFix

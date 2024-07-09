@@ -43,23 +43,23 @@ class CloudflareBypass:
         for argument in arguments:
             options.set_argument(argument)
 
-        self.driver = ChromiumPage(addr_or_opts=options)
-        print(self.driver.user_agent)
+        self.page = ChromiumPage(addr_or_opts=options)
+        print(self.page.user_agent)
 
     def bypass(self, url: str):
-        self.driver.set.cookies.clear()
-        self.driver.get(url)
+        self.page.set.cookies.clear()
+        self.page.get(url)
 
         check_count = 0
         while True:
-            print(self.driver.cookies())
+            print(self.page.cookies())
             if self.is_passed():
                 break
 
             if check_count >= 5:
                 error_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S-DrissionPage")
                 error_path = os.path.join(config.BROWSER_DATA, "error")
-                self.driver.get_screenshot(
+                self.page.get_screenshot(
                     path=error_path, name=f"{error_time}.png", full_page=True
                 )
                 raise Exception("Meet challenge restart")
@@ -69,11 +69,11 @@ class CloudflareBypass:
 
             check_count += 1
 
-        return self.driver.cookies(all_info=True)
+        return self.page.cookies(all_info=True)
 
     def try_to_click_challenge(self):
         try:
-            wrapper = self.driver.ele(".cf-turnstile-wrapper")
+            wrapper = self.page.ele(".cf-turnstile-wrapper")
             shadow_root = wrapper.shadow_root
             iframe = shadow_root.ele("tag=iframe", timeout=15)
             verify_element = iframe.ele("Verify you are human", timeout=25)
@@ -105,10 +105,10 @@ class CloudflareBypass:
 
                 print("\n")
                 property_list = {
-                    attr: getattr(self.driver.rect, attr)
-                    for attr in dir(self.driver.rect)
+                    attr: getattr(self.page.rect, attr)
+                    for attr in dir(self.page.rect)
                     if not attr.startswith("__")
-                    and not callable(getattr(self.driver.rect, attr))
+                    and not callable(getattr(self.page.rect, attr))
                 }
 
                 # 手动遍历字典并格式化输出
@@ -116,7 +116,7 @@ class CloudflareBypass:
                     print(f"{key}: {value}")
 
             screen_x, screen_y = verify_element.rect.screen_location
-            page_x, page_y = self.driver.rect.page_location
+            page_x, page_y = self.page.rect.page_location
             width, height = verify_element.rect.size
             offset_x, offset_y = generate_biased_random(
                 int(width - 1)
@@ -140,7 +140,7 @@ class CloudflareBypass:
                 click_x, click_y, duration=0.5, tween=pyautogui.easeInElastic
             )
             pyautogui.click()
-            self.driver.wait.load_start(timeout=20)
+            self.page.wait.load_start(timeout=20)
         except Exception as e:
             # 2025-05-26
             # 有时会出现错误，重试能解决一部分问题
@@ -152,16 +152,16 @@ class CloudflareBypass:
             logger.info(
                 f"[CloudflareBypass.try_to_click_challenge] fail to click the challenge. message: {str(e)}"
             )
-            self.driver.refresh()
+            self.page.refresh()
             time.sleep(5)
 
     def is_passed(self):
         return any(
-            cookie.get("name") == "cf_clearance" for cookie in self.driver.cookies()
+            cookie.get("name") == "cf_clearance" for cookie in self.page.cookies()
         )
 
     def close(self):
         try:
-            self.driver.close()
+            self.page.close()
         except Exception as e:
             print(e)
