@@ -38,6 +38,7 @@ class CloudflareBypass:
         else:
             # 图形界面中，如果使用--start-maximized，获取的page_x和page_y有时候并不准确(原因未知)，所以全屏使page_x, page_y为0
             arguments.append("--start-fullscreen")
+            # arguments.append("--start-maximized")
 
         for argument in arguments:
             options.set_argument(argument)
@@ -72,85 +73,74 @@ class CloudflareBypass:
 
     def try_to_click_challenge(self):
         try:
-            if self.driver.wait.ele_displayed("xpath://div/iframe", timeout=15):
-                if config.env == "dev":
-                    iframe = self.driver("xpath://div/iframe")
-                    iframe = self.driver.get_frame(iframe)
-                    iframe.run_js(
-                        script="""
-                        document.addEventListener('click', function(event) {
-                            console.log("click event trigger")
-                            console.table(event);
-                        });
-                    """
-                    )
-                verify_element = self.driver("xpath://div/iframe").ele(
-                    "Verify you are human", timeout=25
-                )
-                time.sleep(random.uniform(2, 5))
+            wrapper = self.driver.ele(".cf-turnstile-wrapper")
+            shadow_root = wrapper.shadow_root
+            iframe = shadow_root.ele("tag=iframe", timeout=15)
+            verify_element = iframe.ele("Verify you are human", timeout=25)
+            time.sleep(random.uniform(2, 5))
 
-                # 2024-07-05
-                # 直接在element上执行click(通过CDP协议)无法通过cloudflare challenge
-                # 原因:
-                # CDP命令执行的event中client_x, client_y与screen_x, screen_y是一样的，而手动点击触发的事件两者是不一样的,所以无法使用CDP模拟出鼠标点击通过验证
-                # 解决方法:
-                # 先获取点击的坐标，使用pyautogui模拟鼠标点击
-                # CDP参考 https://chromedevtools.github.io/devtools-protocol/tot/Input/
-                # verify_element.click()
-                def generate_biased_random(n):
-                    weights = [min(i, n - i + 1) for i in range(1, n + 1)]
-                    return random.choices(range(1, n + 1), weights=weights)[0]
+            # 2024-07-05
+            # 直接在element上执行click(通过CDP协议)无法通过cloudflare challenge
+            # 原因:
+            # CDP命令执行的event中client_x, client_y与screen_x, screen_y是一样的，而手动点击触发的事件两者是不一样的,所以无法使用CDP模拟出鼠标点击通过验证
+            # 解决方法:
+            # 先获取点击的坐标，使用pyautogui模拟鼠标点击
+            # CDP参考 https://chromedevtools.github.io/devtools-protocol/tot/Input/
+            # verify_element.click()
+            def generate_biased_random(n):
+                weights = [min(i, n - i + 1) for i in range(1, n + 1)]
+                return random.choices(range(1, n + 1), weights=weights)[0]
 
-                if config.env == "dev":
-                    property_list = {
-                        attr: getattr(verify_element.rect, attr)
-                        for attr in dir(verify_element.rect)
-                        if not attr.startswith("__")
-                        and not callable(getattr(verify_element.rect, attr))
-                    }
+            if config.env == "dev":
+                property_list = {
+                    attr: getattr(verify_element.rect, attr)
+                    for attr in dir(verify_element.rect)
+                    if not attr.startswith("__")
+                    and not callable(getattr(verify_element.rect, attr))
+                }
 
-                    # 手动遍历字典并格式化输出
-                    for key, value in property_list.items():
-                        print(f"{key}: {value}")
+                # 手动遍历字典并格式化输出
+                for key, value in property_list.items():
+                    print(f"{key}: {value}")
 
-                    print("\n")
-                    property_list = {
-                        attr: getattr(self.driver.rect, attr)
-                        for attr in dir(self.driver.rect)
-                        if not attr.startswith("__")
-                        and not callable(getattr(self.driver.rect, attr))
-                    }
+                print("\n")
+                property_list = {
+                    attr: getattr(self.driver.rect, attr)
+                    for attr in dir(self.driver.rect)
+                    if not attr.startswith("__")
+                    and not callable(getattr(self.driver.rect, attr))
+                }
 
-                    # 手动遍历字典并格式化输出
-                    for key, value in property_list.items():
-                        print(f"{key}: {value}")
+                # 手动遍历字典并格式化输出
+                for key, value in property_list.items():
+                    print(f"{key}: {value}")
 
-                screen_x, screen_y = verify_element.rect.screen_location
-                page_x, page_y = self.driver.rect.page_location
-                width, height = verify_element.rect.size
-                offset_x, offset_y = generate_biased_random(
-                    int(width - 1)
-                ), generate_biased_random(int(height - 1))
+            screen_x, screen_y = verify_element.rect.screen_location
+            page_x, page_y = self.driver.rect.page_location
+            width, height = verify_element.rect.size
+            offset_x, offset_y = generate_biased_random(
+                int(width - 1)
+            ), generate_biased_random(int(height - 1))
 
-                click_x, click_y = (
-                    screen_x + page_x + offset_x,
-                    screen_y + page_y + offset_y,
-                )
+            click_x, click_y = (
+                screen_x + page_x + offset_x,
+                screen_y + page_y + offset_y,
+            )
 
-                logger.info(
-                    f"[CloudflareBypass.try_to_click_challenge] Screen point [{screen_x}, {screen_y}]"
-                )
-                logger.info(
-                    f"[CloudflareBypass.try_to_click_challenge] Page point[{page_x}, {page_y}]"
-                )
-                logger.info(
-                    f"[CloudflareBypass.try_to_click_challenge] Click point [{click_x}, {click_y}]"
-                )
-                pyautogui.moveTo(
-                    click_x, click_y, duration=0.5, tween=pyautogui.easeInElastic
-                )
-                pyautogui.click()
-                self.driver.wait.load_start(timeout=20)
+            logger.info(
+                f"[CloudflareBypass.try_to_click_challenge] Screen point [{screen_x}, {screen_y}]"
+            )
+            logger.info(
+                f"[CloudflareBypass.try_to_click_challenge] Page point[{page_x}, {page_y}]"
+            )
+            logger.info(
+                f"[CloudflareBypass.try_to_click_challenge] Click point [{click_x}, {click_y}]"
+            )
+            pyautogui.moveTo(
+                click_x, click_y, duration=0.5, tween=pyautogui.easeInElastic
+            )
+            pyautogui.click()
+            self.driver.wait.load_start(timeout=20)
         except Exception as e:
             # 2025-05-26
             # 有时会出现错误，重试能解决一部分问题
@@ -163,6 +153,7 @@ class CloudflareBypass:
                 f"[CloudflareBypass.try_to_click_challenge] fail to click the challenge. message: {str(e)}"
             )
             self.driver.refresh()
+            time.sleep(5)
 
     def is_passed(self):
         return any(
