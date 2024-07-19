@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   chatgpt-web:
     image: chenzhaoyu94/chatgpt-web # always use latest, pull the tag image again to update

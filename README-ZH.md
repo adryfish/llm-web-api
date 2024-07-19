@@ -20,11 +20,13 @@
 
 与ChatGPT接口完全兼容。
 
-## 原理
-利用[DrissionPage](https://github.com/g1879/DrissionPage)模拟浏览器登录破解`Cloudflare` 5s盾，成功后将`cookie`注入[Playwright](https://playwright.dev/)控制的浏览器中。模拟用户操作并监听响应结果。
-通过使用此方式，免去了复现核心加密JS代码，逆向难度大大降低。
-
 ## 使用方法
+
+**只支持docker镜像，代码在本地无法运行**
+
+**只支持docker镜像，代码在本地无法运行**
+
+**只支持docker镜像，代码在本地无法运行**
 
 ### 使用Docker
 #### 使用Docker运行
@@ -57,55 +59,6 @@ services:
     restart: unless-stopped
 ```
 
-### 本地安装
-#### 创建并激活 python 虚拟环境
-
-```shell   
-# 进入项目根目录
-cd llm-web-api
-
-# 创建虚拟环境
-# 注意python 版本需要3.10以上
-python -m venv venv
-
-# macos & linux 激活虚拟环境
-source venv/bin/activate
-
-# windows 激活虚拟环境
-venv\Scripts\activate
-```
-
-#### 安装依赖库
-
-```shell
-pip3 install -r requirements.txt
-```
-
-#### 安装 playwright浏览器驱动
-
-```shell
-# 暂时只支持Chrome浏览器
-playwright install chrome
-```
-
-#### 安装xvfb(可选)
-```shell
-# 对于无图形界面的Linux，需要安装xvfb
-sudo apt-get install xvfb
-```
-
-#### 设置环境变量
-
-```shell
-# 根据需求设置环境变量
-cp .env.example .env
-```
-
-#### 启动FastAPI服务器
-```shell
-python main.py
-```
-
 ### 环境变量
 
 所有的环境变量均为可选。关于CAPSOLVER_API_KEY，除非你真的遇到`FunCaptcha`，否则你不需要填写。
@@ -136,9 +89,9 @@ python main.py
 请求数据：
 ```json
 {
-    // 如果你是未登录用户，模型名称填写gpt-3.5-turbo
-    // 如果你是免费用户，模型名称填写gpt-3.5-turbo, gpt-4o
-    // 如果你是订阅用户,模型名称填写gpt-3.5-turbo, gpt-4o, gpt-4
+    // 如果你是未登录用户，模型名称填写gpt-3.5-turbo, gpt-4o-mini
+    // 如果你是免费用户，模型名称填写gpt-3.5-turbo, gpt-4o-mini, gpt-4o
+    // 如果你是订阅用户,模型名称填写gpt-3.5-turbo, gpt-4o-mini, gpt-4o, gpt-4
     "model": "gpt-4o",
     "messages": [
         {
@@ -186,7 +139,7 @@ openai.api_key = 'anything'
 openai.base_url = "http://localhost:5000/v1/"
 
 completion = openai.chat.completions.create(
-    model="gpt-3.5-turbo",
+    model="gpt-4o-mini",
     messages=[
         {"role": "user", "content": "Hello"},
     ],
@@ -207,7 +160,7 @@ const openai = new OpenAI({
 
 const chatCompletion = await openai.chat.completions.create({
   messages: [{ role: 'user', content: 'Echo Hello' }],
-  model: 'gpt-3.5-turbo',
+  model: 'gpt-4o-mini',
 });
 
 console.log(chatCompletion.choices[0].message.content);
@@ -234,10 +187,6 @@ keepalive_timeout 120;
 
 ### Token统计
 由于推理侧不在llm-web-api，因此token不可统计，将以固定数字返回!!!!!
-
-## 请我喝咖啡
-如果本项目对您有所帮助，不妨请作者我喝杯咖啡。
-![wechat.jpg](static/image/wechat.jpg)
 
 ## 免责声明
 

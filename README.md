@@ -25,6 +25,13 @@ Compatible with the `ChatGPT` API.
 
 ## Usage
 
+**Only Docker images are supported, and the code cannot be run locally.**
+
+**Only Docker images are supported, and the code cannot be run locally.**
+
+**Only Docker images are supported, and the code cannot be run locally.**
+
+
 ### Docker
 #### Run with Docker
 
@@ -56,55 +63,6 @@ services:
     restart: unless-stopped
 ```
 
-### Local
-#### Create and activate python venv
-
-```shell   
-cd llm-web-api
-
-# create python venv
-# Note: Python version must be above 3.10
-python -m venv venv
-
-# macos & linux activate virtual environment
-source venv/bin/activate
-
-# windows activate virtual environment
-venv\Scripts\activate
-```
-
-#### Install dependencies
-
-```shell
-pip3 install -r requirements.txt
-```
-
-#### Install Chrome web browser
-
-```shell
-# Currently only supports Chrome browser
-playwright install chrome
-```
-
-#### Install xvfb (Optional)
-```shell
-# For no GUI Linux, install xvfb
-sudo apt-get install xvfb
-```
-
-#### Set environment variables
-
-```shell
-# Set environment variables as needed
-cp .env.example .env
-```
-
-#### Start FastAPI server
-
-```shell
-python main.py
-```
-
 ### Environment
 
 All environment variables are optional. Regarding the `CAPSOLVER_API_KEY`, you do not need to fill it out unless you actually encounter a `FunCaptcha`.
@@ -134,9 +92,9 @@ Chat completion API，compatible with Openai [chat-completions-api](https://plat
 Request：
 ```json
 {
-    // If you are no-login user, use gpt-3.5-turbo for the model name.
-    // If you are a free user, use gpt-3.5-turbo or gpt-4o for the model name.
-    // If you are a subscribed user, use gpt-3.5-turbo, gpt-4o, or gpt-4 for the model name.
+    // If you are no-login user, use gpt-3.5-turbo or gpt-4o-mini 
+    // If you are a free user, use gpt-3.5-turbo, gpt-4o-mini or gpt-4o 
+    // If you are a subscribed user, use gpt-3.5-turbo, gpt-4o-mini, gpt-4o, or gpt-4 for the model name.
     "model": "gpt-4o",
     "messages": [
         {
@@ -184,7 +142,7 @@ openai.api_key = 'anything'
 openai.base_url = "http://localhost:5000/v1/"
 
 completion = openai.chat.completions.create(
-    model="gpt-3.5-turbo",
+    model="gpt-4o-mini",
     messages=[
         {"role": "user", "content": "Hello"},
     ],
@@ -205,7 +163,7 @@ const openai = new OpenAI({
 
 const chatCompletion = await openai.chat.completions.create({
   messages: [{ role: 'user', content: 'Echo Hello' }],
-  model: 'gpt-3.5-turbo',
+  model: 'gpt-4o-mini',
 });
 
 console.log(chatCompletion.choices[0].message.content);
@@ -236,10 +194,6 @@ keepalive_timeout 120;
 
 ### Token
 Since inference is not performed on the llm-web-api side, token statistics will be returned as fixed number!!!!!
-
-## Buy Me a Coffee
-If this project is helpful to you, why not buy the author a cup of coffee 
-![wechat.jpg](static/image/wechat.jpg)
 
 ## Disclaimer
 
