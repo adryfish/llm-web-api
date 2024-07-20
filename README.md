@@ -25,12 +25,11 @@ Compatible with the `ChatGPT` API.
 
 ## Usage
 
-**Only Docker images are supported, and the code cannot be run locally.**
+**Only Docker images are supported, The current code is not up to date.**
 
-**Only Docker images are supported, and the code cannot be run locally.**
+**Only Docker images are supported, The current code is not up to date.**
 
-**Only Docker images are supported, and the code cannot be run locally.**
-
+**Only Docker images are supported, The current code is not up to date.**
 
 ### Docker
 #### Run with Docker
