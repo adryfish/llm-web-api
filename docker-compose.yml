@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  llm-web-api:
+    image: adryfish/llm-web-api
+    container_name: llm-web-api
+    ports:
+      - "5000:5000"
+    # volumes:
+    #   # 浏览器数据，如何要保留浏览器登录信息，需要配置
+    #   - ./data:/app/data
+    # environment:                # 全部为可选参数
+      # PROXY_SERVER: ""          # 代理服务器地址
+      # OPENAI_LOGIN_TYPE: ""     # 登录类型,nologin or email
+      # OPENAI_LOGIN_EMAIL: ""    # 登录邮箱
+      # OPENAI_LOGIN_PASSWORD: "" # 登录密码
+    restart: unless-stopped
