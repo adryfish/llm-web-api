@@ -8,7 +8,7 @@
 
 ## 功能列表
  - 通过`Cloudflare`验证破解
- - 登录模式支持免登录和邮箱登录
+ - 登录模式支持免登录,邮箱登录和Google登录
  - 高速流式输出
  - 模型切换
  - 动态显示支持模型
@@ -53,9 +53,14 @@ services:
 |-----------------------|----------------------------------------|--------|
 | PROXY_SERVER          | 代理服务器地址                            | None     |
 | DATA_DIR              | 数据存放目录                         | 当前目录/data   |
-| OPENAI_LOGIN_TYPE     | ChatGPT 的登录类型, nologin 或者 email    | nologin|
+| OPENAI_LOGIN_TYPE     | ChatGPT 的登录类型, nologin, email, google    | nologin|
 | OPENAI_LOGIN_EMAIL    | 对于 email 登录方式，提供 email 帐号        | None     |
 | OPENAI_LOGIN_PASSWORD | 对于 email 登录方式，提供密码               | None     |
+| GOOGLE_LOGIN_EMAIL    | google登录邮箱 | None      |
+| GOOGLE_LOGIN_PASSWORD    | google登录邮箱密码 | None      |
+| GOOGLE_LOGIN_OTP_SECRET    | google登录二次认证secret  | None      |
+| GOOGLE_LOGIN_RECOVERY_EMAIL    | google登录恢复邮箱  | None      |
+
 
 ## 原理
 使用`Playwright`控制指纹浏览器，模拟用户操作，发送请求到OpenAI网页， 将响应转换成API接口。

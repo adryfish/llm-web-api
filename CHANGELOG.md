@@ -1,3 +1,8 @@
+# v2.1.0
+
+## Feature
+  - 支持Google账号登录
+
 # v2.0.0
 
 ## Feature

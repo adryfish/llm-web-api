@@ -10,7 +10,7 @@ ChatGPT Web Page to API interface.
 
 ## Features
   - Bypass `Cloudflare` challenge
-  - Login mode: no-login or email
+  - Login mode: no-login, email, google login
   - High-speed streaming output
   - Model switching
   - Dynamically display supported models
@@ -56,9 +56,13 @@ All environment variables are optional.
 |-----------------------|------------------------------------------|--------|
 | PROXY_SERVER          | Proxy server address	                   | None     |
 | DATA_DIR              | Data storage directory	                 | ./browser_data   |
-| OPENAI_LOGIN_TYPE     | ChatGPT login type, nologin or email     | nologin|
+| OPENAI_LOGIN_TYPE     | ChatGPT login type, nologin or email, google     | nologin|
 | OPENAI_LOGIN_EMAIL    | Email account for email login type	     | None     |
 | OPENAI_LOGIN_PASSWORD | Password for email login type	           | None     |
+| GOOGLE_LOGIN_EMAIL    | google login email | None      |
+| GOOGLE_LOGIN_PASSWORD    | google login password | None      |
+| GOOGLE_LOGIN_OTP_SECRET    | google login 2fa secret | None       |
+| GOOGLE_LOGIN_RECOVERY_EMAIL    | google login recovery email  | None       |
 
 ## Principle
 
@@ -77,9 +81,6 @@ Chat completion API，compatible with Openai [chat-completions-api](https://plat
 Request：
 ```json
 {
-    // If you are no-login user, use gpt-3.5-turbo or gpt-4o-mini 
-    // If you are a free user, use gpt-3.5-turbo, gpt-4o-mini or gpt-4o 
-    // If you are a subscribed user, use gpt-3.5-turbo, gpt-4o-mini, gpt-4o, or gpt-4 for the model name.
     "model": "gpt-4o",
     "messages": [
         {
