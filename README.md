@@ -12,8 +12,8 @@ ChatGPT Web Page to API interface.
   - Bypass `Cloudflare` challenge
   - Login mode: no-login, email, google login
   - High-speed streaming output
-  - Model switching
-  - Dynamically display supported models
+  - Model switching, Dynamically display supported models
+  - Conversation support
 
 Compatible with the `ChatGPT` API.
 
@@ -63,6 +63,7 @@ All environment variables are optional.
 | GOOGLE_LOGIN_PASSWORD    | google login password | None      |
 | GOOGLE_LOGIN_OTP_SECRET    | google login 2fa secret | None       |
 | GOOGLE_LOGIN_RECOVERY_EMAIL    | google login recovery email  | None       |
+| ENABLE_REQUEST_METADATA       | support request metadata | False   |
 
 ## Principle
 
@@ -79,7 +80,7 @@ Chat completion API，compatible with Openai [chat-completions-api](https://plat
 **POST /v1/chat/completions**
 
 Request：
-```json
+```jsonc
 {
     "model": "gpt-4o",
     "messages": [
@@ -88,13 +89,19 @@ Request：
             "content": "Hello"
         }
     ],
-    // If using SSE stream, set to true, default is false
+    // Optional: If using SSE stream, set to true, default is false
     "stream": false
+    // Optional: enable by set environment ENABLE_REQUEST_METADATA=True
+    // conversation context
+    // "meta": {
+    //   "parent_message_id": "5363437e-b364-4b72-b3d6-415deeed11ab",
+    //   "conversation_id": "6774f183-f70c-800b-9965-6c110d3a3485"
+    // }
 }
 ```
 
 Response：
-```json
+```jsonc
 {
     "id": "chatcmpl-fZc6l869OzRu8rp7X8Dhj0COfTsR6",
     "object": "chat.completion",
@@ -115,6 +122,11 @@ Response：
         "prompt_tokens": 1,
         "completion_tokens": 11,
         "total_tokens": 12
+    },
+    // when ENABLE_REQUEST_METADATA=True, meta data retured
+    "meta": {
+        "message_id": "dffd63ef-63ac-4d40-b6de-e33ec40de9e2",
+        "conversation_id": "6774f183-f70c-800b-9965-6c110d3a3485"
     }
 }
 ```

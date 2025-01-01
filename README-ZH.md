@@ -10,8 +10,8 @@
  - 通过`Cloudflare`验证破解
  - 登录模式支持免登录,邮箱登录和Google登录
  - 高速流式输出
- - 模型切换
- - 动态显示支持模型
+ - 模型切换,动态显示支持模型
+ - 对话支持
 
 与ChatGPT接口完全兼容。
 
@@ -60,6 +60,7 @@ services:
 | GOOGLE_LOGIN_PASSWORD    | google登录邮箱密码 | None      |
 | GOOGLE_LOGIN_OTP_SECRET    | google登录二次认证secret  | None      |
 | GOOGLE_LOGIN_RECOVERY_EMAIL    | google登录恢复邮箱  | None      |
+| ENABLE_REQUEST_METADATA       | 请求支持meta数据                         | False   |
 
 
 ## 原理
@@ -76,7 +77,7 @@ services:
 **POST /v1/chat/completions**
 
 请求数据：
-```json
+```jsonc
 {
     "model": "gpt-4o",
     "messages": [
@@ -85,13 +86,19 @@ services:
             "content": "Hello"
         }
     ],
-    // 如果使用SSE流请设置为true，默认false
+    // 可选: 如果使用SSE流请设置为true，默认false
     "stream": false
+    // 可选,需要设置ENABLE_REQUEST_METADATA=True
+    // 对话上下文信息
+    // "meta": {
+    //   "parent_message_id": "5363437e-b364-4b72-b3d6-415deeed11ab",
+    //   "conversation_id": "6774f183-f70c-800b-9965-6c110d3a3485"
+    // }
 }
 ```
 
 响应数据：
-```json
+```jsonc
 {
     "id": "chatcmpl-fZc6l869OzRu8rp7X8Dhj0COfTsR6",
     "object": "chat.completion",
@@ -112,6 +119,11 @@ services:
         "prompt_tokens": 1,
         "completion_tokens": 11,
         "total_tokens": 12
+    },
+    // 如何没有设置ENABLE_REQUEST_METADATA=True，则不会有meta数据返回
+    "meta": {
+        "message_id": "dffd63ef-63ac-4d40-b6de-e33ec40de9e2",
+        "conversation_id": "6774f183-f70c-800b-9965-6c110d3a3485"
     }
 }
 ```
