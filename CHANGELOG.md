@@ -1,3 +1,17 @@
+# v2.3.11
+
+## Feature
+  - 支持TTS
+  - 更新到指纹浏览器Chrome 132，使用固定指纹
+
+## Bugfix
+  - 修复Cloudflare在IP质量较差时无法通过的问题
+  - 解决Python升级打包出错
+
+## Enhancement
+  - 优化Cloudflare解决流程
+
+
 # v2.2.0
 
 ## Feature

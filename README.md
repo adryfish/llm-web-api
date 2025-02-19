@@ -14,6 +14,7 @@ ChatGPT Web Page to API interface.
   - High-speed streaming output
   - Model switching, Dynamically display supported models
   - Conversation support
+  - TTS support
 
 Compatible with the `ChatGPT` API.
 
@@ -42,7 +43,7 @@ services:
       - ./data:/app/data
     environment:
       # PROXY_SERVER: ""          # Proxy server address
-      # OPENAI_LOGIN_TYPE: ""     # Login Type,nologin or email
+      # OPENAI_LOGIN_TYPE: ""     # Login Type,nologin or email or google
       # OPENAI_LOGIN_EMAIL: ""    # Login email
       # OPENAI_LOGIN_PASSWORD: "" # Login password
     restart: unless-stopped
@@ -52,20 +53,21 @@ services:
 
 All environment variables are optional. 
 
-| variable              | description                              | default  |
+| Variable              | Description                              | Default  |
 |-----------------------|------------------------------------------|--------|
 | PROXY_SERVER          | Proxy server address	                   | None     |
-| DATA_DIR              | Data storage directory	                 | ./browser_data   |
-| OPENAI_LOGIN_TYPE     | ChatGPT login type, nologin or email, google     | nologin|
-| OPENAI_LOGIN_EMAIL    | Email account for email login type	     | None     |
-| OPENAI_LOGIN_PASSWORD | Password for email login type	           | None     |
-| GOOGLE_LOGIN_EMAIL    | google login email | None      |
-| GOOGLE_LOGIN_PASSWORD    | google login password | None      |
-| GOOGLE_LOGIN_OTP_SECRET    | google login 2fa secret | None       |
-| GOOGLE_LOGIN_RECOVERY_EMAIL    | google login recovery email  | None       |
-| ENABLE_REQUEST_METADATA       | support request metadata | False   |
+| DATA_DIR              | Data storage directory	                 | ./data   |
+| OPENAI_LOGIN_TYPE     | ChatGPT login type: `nologin`, `email`, `google`  | nologin |
+| OPENAI_LOGIN_EMAIL    | Email account for email login           | None     |
+| OPENAI_LOGIN_PASSWORD | Password for email login                | None     |
+| OPENAI_LOGIN_APP_PASSWORD | App password for email verification  | None     |
+| GOOGLE_LOGIN_EMAIL    | Google login email                      | None     |
+| GOOGLE_LOGIN_PASSWORD | Google login password                   | None     |
+| GOOGLE_LOGIN_OTP_SECRET | Google login 2FA secret               | None     |
+| GOOGLE_LOGIN_RECOVERY_EMAIL | Google login recovery email       | None     |
 
-## Principle
+
+## How it works
 
 The system uses `Playwright` to control a fingerprint browser, simulating user operations to send requests to the OpenAI website and converting the responses into API interfaces.
 
@@ -75,11 +77,11 @@ Currently supports the OpenAI-compatible /v1/chat/completions API, which can be 
 
 ### Chat completion
 
-Chat completion API，compatible with Openai [chat-completions-api](https://platform.openai.com/docs/api-reference/chat)。
+Chat completion API，compatible with OpenAI [Chat Completions API](https://platform.openai.com/docs/api-reference/chat)。
 
 **POST /v1/chat/completions**
 
-Request：
+**Request：**
 ```jsonc
 {
     "model": "gpt-4o",
@@ -91,16 +93,18 @@ Request：
     ],
     // Optional: If using SSE stream, set to true, default is false
     "stream": false
-    // Optional: enable by set environment ENABLE_REQUEST_METADATA=True
-    // conversation context
+    // Optional: If enabled, the response will include meta information(message_id and conversation id)
+    // If both parent_message_id and conversation_id are provided, the request will continue within the existing conversation context.
+    // If they are not set, the request will be treated as a new conversation.
     // "meta": {
-    //   "parent_message_id": "5363437e-b364-4b72-b3d6-415deeed11ab",
-    //   "conversation_id": "6774f183-f70c-800b-9965-6c110d3a3485"
+    //   "enable": true,
+    //   "parent_message_id": "5363437e-b364-4b72-b3d6-415deeed11ab", # Optional
+    //   "conversation_id": "6774f183-f70c-800b-9965-6c110d3a3485"    # Optional 
     // }
 }
 ```
 
-Response：
+**Response：**
 ```jsonc
 {
     "id": "chatcmpl-fZc6l869OzRu8rp7X8Dhj0COfTsR6",
@@ -123,13 +127,34 @@ Response：
         "completion_tokens": 11,
         "total_tokens": 12
     },
-    // when ENABLE_REQUEST_METADATA=True, meta data retured
     "meta": {
         "message_id": "dffd63ef-63ac-4d40-b6de-e33ec40de9e2",
         "conversation_id": "6774f183-f70c-800b-9965-6c110d3a3485"
     }
 }
 ```
+
+### Audio Create Speech
+
+Audio Speech API, compatible with OpenAI's [Audio Speech API](https://platform.openai.com/docs/api-reference/audio). It allows users to generate speech from text input.
+
+**POST /v1/audio/speech**
+
+**Request:**
+```jsonc
+{
+    "input": "Hello, how are you?",
+    "voice": "cove"
+    "model": "tts-1",
+    // Optional: specify response format, default is "aac"
+    "response_format": "mp3",
+}
+```
+
+**Response:**
+
+If successful, the API returns an audio file in the requested format.
+
 
 ## Examples
 ### Using OpenAI Official Library
@@ -167,31 +192,6 @@ const chatCompletion = await openai.chat.completions.create({
 
 console.log(chatCompletion.choices[0].message.content);
 ```
-
-## Disclaimer
-
-This document outlines the terms and conditions under which the Project (hereinafter referred to as "the Project") is provided. By accessing or using the Project, you acknowledge that you have read, understood, and agreed to the terms of this disclaimer.
-
-1. **No Warranties**  
-   The Project is provided "as is" without any warranties, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, legality, or non-infringement. We do not guarantee the Project's reliability, accuracy, or suitability for any specific purpose.
-
-2. **Limitation of Liability**  
-   Under no circumstances shall the developer or contributors of the Project be held liable for any direct, indirect, incidental, consequential, or special damages arising from or related to the use or inability to use the Project. This includes, but is not limited to, loss of data, revenue, or business opportunities.
-
-3. **User Responsibility**  
-   Users are solely responsible for ensuring their compliance with all applicable laws and regulations when using the Project. Any misuse, unauthorized actions, or illegal activities conducted with or through the Project are entirely at the user's own risk and responsibility.
-
-4. **Third-Party Content**  
-   The Project may contain links to or resources from third-party websites or services. These are provided for convenience only, and we make no representations or warranties regarding their content, accuracy, or functionality. We disclaim any liability for any issues arising from the use of such third-party content.
-
-5. **Acceptance of Terms**  
-   By continuing to use the Project, you agree to the terms outlined in this disclaimer. If you do not agree with any part of this disclaimer, you must immediately discontinue the use of the Project.
-
-6. **Modifications to the Disclaimer**  
-   We reserve the right to modify or update this disclaimer at any time without prior notice. It is the user's responsibility to review the disclaimer periodically for any changes.
-
-If you have any concerns or questions regarding this disclaimer, please contact us before using the Project.
-
 
 ## Similar Projects
   - chat2api: https://github.com/lanqian528/chat2api
